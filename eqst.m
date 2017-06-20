@@ -26,7 +26,7 @@ function Results=eqst(Data,Options)
 %               included in options, an interpolating cubic spline is integrated.
 %             mask:  is a grid of ones or Nan's of size (nP,nT) to define the physical regime
 %            loglam_start:  log10(lam) for the initial damping parameter (default=1)     
-%            loglam_end:   log10(lam) for the damping parameter at the highest pressures (default=10)    
+%            loglam_end:   log10(lam) for the damping parameter at the highest pressures (default=3)    
 %            pflg:    if pflg=1 plots quantities associated with the adiabatic to isothermal
 %                correction - provides information if the integration is not working
 %            mdrv:  derivative of V vs T that is to be smooth (default=4)
