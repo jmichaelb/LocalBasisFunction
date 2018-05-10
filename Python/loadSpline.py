@@ -37,6 +37,7 @@ def validateSpline(matSp):
     pass
 
 def getSplineDict(matSp):
+    # TODO change this to use a UnivariateSpline object?
     return {
         'form':     matSp[0][0][0][0],
         'knots':    np.array([kd[0] for kd in matSp[0][0][1][0]]),
