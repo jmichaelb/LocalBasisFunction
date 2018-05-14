@@ -28,8 +28,7 @@ def evalMultivariateSpline(spd, x):
         tck = getNextSpline(di, spd, x, y)
         y = np.array(interp.splev(xi, tck))
     # need to rearrange back to original order and shape
-    #return rearrangeCoefs(y,-1,spd,x)
-    return y
+    return rearrangeCoefs(y,-1,spd,x)
 
 
 def getNextSpline(dimIdx, spd, x, coefs):
@@ -55,16 +54,22 @@ def getNextSpline(dimIdx, spd, x, coefs):
 
 def rearrangeCoefs(coefs,dimIdx,spd,x):
     dS = getDSizes(dimIdx, spd, x)  # the expected size for each dim in original order
-    # coefs will be coming in untouched from the last iteration or raw directly from the spline (for the outermost dim)
-    #       the previous dimIdx will always be last and the others will be in their original order
-    #       (e.g. for 3 dims with dimIdx = 1, first will be the size of dim 0, then size of dim 2, then size of dim 1)
-    uSh = getDShape(dimIdx, dS, False)  # the sizes of the dimensions in the order they were passed in for ungrouping
-    gSh = getDShape(dimIdx, dS, True)  # the sizes of the dimensions in the new order for regrouping
+    if dimIdx < 0:
+        destIdx = 0          # move this dim to the beginning
+        uSh = getDShape(0, dS, False)
+        gSh = dS
+    else:
+        destIdx = -1         # move this dim to the end
+        # coefs will be coming in untouched from the last iteration or raw directly from the spline (for the outermost dim)
+        #       the previous dimIdx will always be last and the others will be in their original order
+        #       (e.g. for 3 dims with dimIdx = 1, first will be the size of dim 0, then size of dim 2, then size of dim 1)
+        uSh = getDShape(dimIdx, dS, False)  # the sizes of the dimensions in the order they were passed in for ungrouping
+        gSh = getDShape(dimIdx, dS, True)  # the sizes of the dimensions in the new order for regrouping
     # you need to ungroup them first so you have the proper number of dimensions before you move them back around
     # then move the current dim to the end
     # then group all but the current dimension
     # TODO: is forced col-by-col ordering necessary?
-    return np.moveaxis(coefs.reshape(uSh, order='F'), dimIdx, -1).reshape(gSh, order='F')
+    return np.moveaxis(coefs.reshape(uSh, order='F'), dimIdx, destIdx).reshape(gSh, order='F')
 
 def getDSizes(dimIdx, spd, x):
     """ Get the proper size for each dimension given the current dimIdx
