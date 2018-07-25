@@ -58,6 +58,9 @@ def validateSpline(spd):
     # each dim of coefs should have as many members as indicated by number
     if not (np.array(spd['coefs'].shape) == spd['number']).all():
         raise ValueError('At least one of the spline''s coefficients doesn''t match the corresponding number.')
+    # each dim of knots should have be of length dictated by corresponding number + order
+    if not np.array(spd['number'] + spd['order'] == [k.size for k in spd['knots']]).all():
+        raise ValueError('The number of knots does not correspond to the number and order for at least one variable.')
     return
 
 

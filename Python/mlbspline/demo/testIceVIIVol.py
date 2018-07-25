@@ -10,7 +10,7 @@ from pylab import get_current_fig_manager
 from mlbspline import *
 
 # A spline giving volume of pure water
-# dimensions of spline are pressure (GPa) and temperature (T)
+# dimensions of spline are pressure (GPa) and temperature (K)
 # ice VII Mie-Grüneisen equation of state based on X-Ray diffraction data from Bezacier et al. (2014)
 
 splineFile = 'iceVII_EOS.mat'
@@ -26,11 +26,21 @@ maxDiff = abs((y - volML)).max()
 print('The maximum difference between the Matlab calculated spline values and those calculated by ' +
       'evalMultiVarSpline is ' + str(maxDiff))
 
+# load data
+dat = loadmat('data_iceVII.mat')['data']
+# data provided is T, P, V - rearrange to match spline
+dat = np.array([[d[1],d[0],d[2]] for d in dat if 0 < d[1] < 20 and 0 < d[0] < 550])
+
+
+
 fig = plt.figure()
-ax = fig.add_subplot(111,projection='3d')
+ax = fig.gca(projection='3d')
+ax.set_xlabel('Pressure (GPa)',labelpad=20)
+ax.set_ylabel('Temperature (K)',labelpad=20)
+ax.set_zlabel('Volume ($m^3$/kg)',labelpad=20)
 P, T = np.meshgrid(P,T)
 ax.plot_surface(P,T,y.T)
-fm = get_current_fig_manager()
-fm.show()
+ax.scatter(dat[:,0],dat[:,1],dat[:,2],c='k')
+plt.title('Ice VII Volume by Pressure and Temperature')
+plt.show()
 
-input("Press Enter to close")
