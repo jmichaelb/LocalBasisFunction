@@ -1,9 +1,9 @@
 from scipy.interpolate import splev
 import numpy as np
 
-from functools import reduce
-from operator import mul
-from itertools import chain
+# from functools import reduce
+# from operator import mul
+# from itertools import chain
 
 
 def evalMultivarSpline(spd, x, der=[]):
@@ -11,7 +11,7 @@ def evalMultivarSpline(spd, x, der=[]):
     For now, assumes 1-D spline (y for each n-D x is scalar)
     x and spd['coefs'] must have the same number of dimensions
 
-    :param spd: a b-spline definition as given by loadSpline.loadMatSpline
+    :param spd: a B-spline definition as given by load.loadSpline
     :param x:   a Numpy n-D array with the points at which the spline should be evaluated
                 the number of dimensions must be same as in the spline (x.size == spd['number'].size)
     :param der: (optional) a list of the derivative levels for evaluation, with each value representing
