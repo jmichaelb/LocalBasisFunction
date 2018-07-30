@@ -2,6 +2,7 @@ from collections import namedtuple
 from inspect import signature
 
 import numpy as np
+from numpy.lib.scimath import sqrt
 
 from mlbspline import *
 
@@ -45,8 +46,6 @@ def evalSolutionGibbs(gibbsSp, x, M=0, rG=True, rrho=True, rvel=True, rCp=True, 
     :param rmuw:    boolean indicating whether to return water chemical potential
     :param rVm:     boolean indicating whether to return ????
     :param rCpm:    boolean indicating whether to return ????
-    :param rCpa:    boolean indicating whether to return ????
-    :param rVa:     boolean indicating whether to return ????
     :return:        a named tuple with the requested thermodynamic values
                     as named properties matching the parameter names of this function
                     the x value is also included as tuple for reference
@@ -56,12 +55,12 @@ def evalSolutionGibbs(gibbsSp, x, M=0, rG=True, rrho=True, rvel=True, rCp=True, 
     # TODO: issue warning if dim values fall (too far?) outside the knot sequence of gibbsSp?
 
     # make sure that spline has 3 dims if quantities using concentration are requested
-    if dimCt == 2 and (rmus or rmuw or rVm or rCpm or rCpa or rVa):
-        raise ValueError("You cannot generate mus, muw, or Vm with a spline that does not include concentration.")
+    if dimCt == 2 and (rmus or rmuw or rVm or rCpm):
+        raise ValueError("You cannot generate mus, muw, Vm, or Cpm with a spline that does not include concentration.")
 
     # check that M is provided if a thermodynamic quantity that uses it is calculated
-    if M == 0 and (rmus or rmuw or rVm or rCpm or rCpa or rVa):
-        raise ValueError("Molecular weight (M) must be provided for mus, muw, or Vm to be generated - either turn off the flag or provide the weight.")
+    if M == 0 and (rmus or rmuw or rVm or rCpm):
+        raise ValueError("Molecular weight (M) must be provided for mus, muw, Vm, or Cpm to be generated - either turn off the flag or provide the weight.")
 
     # prep for calculating apparent values
     if dimCt == 3:
@@ -78,9 +77,8 @@ def evalSolutionGibbs(gibbsSp, x, M=0, rG=True, rrho=True, rvel=True, rCp=True, 
     if rmus:    rG = True
     if rmuw:    rG = True
     if rCpm:    rCp = True
-    if rCpa:    rCp = True
 
-    if rmus or rmuw or vVm:
+    if rmus or rmuw:
         f = 1 + M * x[iX]
 
     # TODO: fix this with along with kwargs - there has GOT to be a better way than this
@@ -123,7 +121,7 @@ def evalSolutionGibbs(gibbsSp, x, M=0, rG=True, rrho=True, rvel=True, rCp=True, 
     if 'S' in tdq:
         out.S = -1 * d1T
     if 'vel' in tdq:
-        out.vel = np.real(np.sqrt(np.power(d1P,2) / (np.power(dPT,2) / d2T - d2P))) # MPa-Pa units conversion cancels
+        out.vel = np.real(sqrt(np.power(d1P,2) / (np.power(dPT,2) / d2T - d2P))) # MPa-Pa units conversion cancels
     if 'rho' in tdq:
         out.rho = 1e6 * np.power(d1P, -1)   # 1e6 for MPa to Pa
     if 'Kt' in tdq:
