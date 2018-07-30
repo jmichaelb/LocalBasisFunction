@@ -1,10 +1,6 @@
 from scipy.interpolate import splev
 import numpy as np
 
-# from functools import reduce
-# from operator import mul
-# from itertools import chain
-
 
 def evalMultivarSpline(spd, x, der=[]):
     """ Performs recursive evaluation of b-spline for the given independent values
