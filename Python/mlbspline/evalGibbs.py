@@ -4,9 +4,10 @@ from pprint import pformat
 import numpy as np
 from numpy.lib.scimath import sqrt
 
-from mlbspline import *
+from mlbspline.eval import evalMultivarSpline
 
 # moles/kg for pure water
+# TODO: Change to 18.01528? has a 10 oom effect on ML - Python calcs for muw
 nw = 1000/18.0152
 # dimension indices
 iP = 0; iT = 1; iX = 2
@@ -18,6 +19,7 @@ defTdq3 = frozenset(['f', 'mus', 'muw', 'Vm', 'Cpm'])
 
 
 def evalSolutionGibbs(gibbsSp, x, M = 0, *tdq):
+    # TODO: add Va, Cpa
     # TODO: check/document units for all measures
     # TODO: make it easier to add a new measure
     # TODO: make fn flexible enough to handle gibbsSp in different units (low priority)
@@ -26,6 +28,7 @@ def evalSolutionGibbs(gibbsSp, x, M = 0, *tdq):
     Warning: units must be as specified here because some conversions are hardcoded into this function.
 
     For developers: to add a new thermodynamic quantity, all of the following should be done:
+    NOTE: new quantities cannot be named P, T, or X, as those symbols are reserved for the input (x)
     - determine whether it can be calculated with a PT spline or just a PTX spline
         if it can be calculated from just a PT spline, add the measure to defTdq2;
         otherwise, add to defTdq3
@@ -102,7 +105,7 @@ def evalSolutionGibbs(gibbsSp, x, M = 0, *tdq):
 
     out = createThermodynamicQuantitiesObj(dimCt, tdq, x)
 
-    derivs = getDerivatives(gibbsSp, x, tdq, dimCt)
+    derivs = getDerivatives(gibbsSp, x, dimCt, tdq)
     xm = getxm(tdq, x)
 
     # generate thermodynamic quantities
@@ -139,7 +142,7 @@ def evalSolutionGibbs(gibbsSp, x, M = 0, *tdq):
         out.muw = evalWaterChemicalPotential(xm, derivs, out)
     if 'Cpm' in tdq:
         # TODO: document what Cpm is and add a fn for evaluating it
-        out.Cpm = M * out.Cp - out.f * derivs.d2T1X * x[iT]
+        out.Cpm = M * out.Cp - out.f * derivs.d2T1X * xm[iT]
     # these depend on secondary quantities
     if 'H' in tdq:
         out.H = evalEnthalpy(xm, out)
@@ -188,8 +191,9 @@ def getFullTdq(tdq, dimCt):
 
 
 def createThermodynamicQuantitiesObj(dimCt, tdq, x):
-    svn = ['P', 'T'] + ([] if dimCt == 2 else ['X'])
-    out = namedtuple('ThermodynamicQuantities', tdq + svn)
+    svn = set(['P', 'T'] + ([] if dimCt == 2 else ['X']))
+    # TODO: include derivs in output?  fnGval returns d1P/d2P/d3P, but no others
+    out = namedtuple('ThermodynamicQuantities', tdq & svn)
     # include input in the output so you always know the conditions for the thermodynamic quantities
     for i in range(0,dimCt):
         if i == iP:
@@ -205,12 +209,14 @@ def adjustConcentrations(X):
     # TODO: properly document why eps is added in and determine whether to return amended X or original X
     eps = np.finfo(type(X[0])).eps  # get the lowest positive value that can be distinguished from 0
     # prepend the list of concentrations with a zero if there isn't already one there
-    out = X if X[0] == 0 else np.concatenate((np.array([0]), X))
+    out = X
+    # TODO: fix this when some calculation is added that uses it (Cpa or Va, possibly other quantities)
+    # out = X if X[0] == 0 else np.concatenate((np.array([0]), X))
     out[out == 0] = eps  # add eps to zero concentrations to avoid divide by zero errors
     return out
 
 
-def createGibbsDerivativesObj(tdq):
+def createGibbsDerivativesObj():
     # TODO: kwargs mimic main fn
     return namedtuple('GibbsDerivatives', ['d1P', 'd1T', 'd1X', 'dPT', 'dPX', 'd2P', 'd2T', 'd2T1X', 'd3P'])
 
@@ -222,25 +228,25 @@ def isInTdq(tdq, flags):
 def getDerivatives(gibbsSp, x, dimCt, tdq):
     # TODO: better handle tdq - use some data structure to do the mapping
     out = createGibbsDerivativesObj()
-    if isInTdq(tdq, ['rho','vel','Kt','Kp','Vm']):
-        out.d1P = eval.evalMultivarSpline(gibbsSp, x, [1 if i == iP else defDer for i in range(0, dimCt)])
+    if isInTdq(tdq, ['rho', 'vel', 'Kt', 'Kp', 'Vm']):
+        out.d1P = evalMultivarSpline(gibbsSp, x, [1 if i == iP else defDer for i in range(0, dimCt)])
     if isInTdq(tdq, ['S']):
-        out.d1T = eval.evalMultivarSpline(gibbsSp, x, [1 if i == iT else defDer for i in range(0, dimCt)])
+        out.d1T = evalMultivarSpline(gibbsSp, x, [1 if i == iT else defDer for i in range(0, dimCt)])
     if isInTdq(tdq, ['mus']):
-        out.d1X = eval.evalMultivarSpline(gibbsSp, x, [1 if i == iX else defDer for i in range(0, dimCt)])
+        out.d1X = evalMultivarSpline(gibbsSp, x, [1 if i == iX else defDer for i in range(0, dimCt)])
     if isInTdq(tdq, ['vel', 'alpha']):
-        out.dPT = eval.evalMultivarSpline(gibbsSp, x, [1 if (i == iP or i == iT) else defDer for i in range(0, dimCt)])
+        out.dPT = evalMultivarSpline(gibbsSp, x, [1 if (i == iP or i == iT) else defDer for i in range(0, dimCt)])
     if isInTdq(tdq, ['Vm']):
-        out.dPX = eval.evalMultivarSpline(gibbsSp, x, [1 if (i == iP or i == iX) else defDer for i in range(0, dimCt)])
+        out.dPX = evalMultivarSpline(gibbsSp, x, [1 if (i == iP or i == iX) else defDer for i in range(0, dimCt)])
     if isInTdq(tdq, ['vel', 'Kt', 'Kp']):
-        out.d2P = eval.evalMultivarSpline(gibbsSp, x, [2 if i == iP else defDer for i in range(0, dimCt)])
+        out.d2P = evalMultivarSpline(gibbsSp, x, [2 if i == iP else defDer for i in range(0, dimCt)])
     if isInTdq(tdq, ['Cp', 'vel']):
-        out.d2T = eval.evalMultivarSpline(gibbsSp, x, [2 if i == iT else defDer for i in range(0, dimCt)])
+        out.d2T = evalMultivarSpline(gibbsSp, x, [2 if i == iT else defDer for i in range(0, dimCt)])
     if isInTdq(tdq, ['Cpm']):
-        out.d2T1X = eval.eval.evalMultivarSpline(gibbsSp, x,
+        out.d2T1X = evalMultivarSpline(gibbsSp, x,
                                              [2 if i == iT else (1 if i == iX else defDer) for i in range(0, dimCt)])
-    if isInTdq(tdq, 'Kp'):
-        out.d3P = eval.evalMultivarSpline(gibbsSp, x, [3 if i == iP else defDer for i in range(0, dimCt)])
+    if isInTdq(tdq, ['Kp']):
+        out.d3P = evalMultivarSpline(gibbsSp, x, [3 if i == iP else defDer for i in range(0, dimCt)])
     return out
 
 
@@ -255,7 +261,7 @@ def evalGibbs(gibbsSp, x):
     """
     :return: G
     """
-    return eval.evalMultivarSpline(gibbsSp, x)
+    return evalMultivarSpline(gibbsSp, x)
 
 
 def evalSpecificHeat(xm, derivs):
