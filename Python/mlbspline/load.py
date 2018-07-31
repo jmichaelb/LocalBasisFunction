@@ -1,6 +1,8 @@
 from scipy.io import whosmat, loadmat
 import numpy as np
 
+# TODO: support a spline with dim > 1 (low priority)
+
 
 def loadSpline(splineFile, splineVar=None):
     """Loads a spline from .mat format file
@@ -27,14 +29,21 @@ def loadSpline(splineFile, splineVar=None):
 
 
 def getSplineDict(matSp):
-    return {
-        'form':     matSp[0][0][0][0],
-        'knots':    np.array([kd[0] for kd in matSp[0][0][1][0]]),
-        'number':   matSp[0][0][2][0],
-        'order':    matSp[0][0][3][0],
-        'dim':      matSp[0][0][4][0],
-        'coefs':    matSp[0][0][5]
+    flds = matSp[0][0].dtype.names
+
+    out = {
+        'form':     matSp[0][0][flds.index('form')][0],
+        'knots':    np.array([kd[0] for kd in matSp[0][0][flds.index('knots')][0]]),
+        'number':   matSp[0][0][flds.index('number')][0],
+        'order':    matSp[0][0][flds.index('order')][0],
+        'dim':      matSp[0][0][flds.index('dim')][0],
+        'coefs':    matSp[0][0][flds.index('coefs')]
     }
+    # note: if dim = 1 and coefs has dimensions [1 number], the coefs should be reshaped
+    if (out['dim'] == np.array([1])).all() & \
+            (np.concatenate((np.array([1]), out['number'])) == np.array(out['coefs'].shape)).all():
+        out['coefs'] = out['coefs'][0,] # just select the single value from the dimension with size 1
+    return out
 
 
 def validateSpline(spd):
