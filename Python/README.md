@@ -1,10 +1,12 @@
-Tested in Python 3.6.5
+Tested in Python 3.7.0
 
 Packages to install
 - `pip3 install --upgrade pip`
 - `pip3 install scipy` - automatically installs numpy
 - `pip3 install jupyter`  See also https://jupyter.readthedocs.io/en/latest/install.html
 - `pip3 install matplotlib`
+
+You may need to repeat these steps whenever upgrading Python.
 
 To get Python to recognize this package, you need to tell Python to look in this directory for packages.
 This can be accomplished in myriad ways.  For a more comprehensive explanation,
