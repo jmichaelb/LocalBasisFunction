@@ -1,16 +1,16 @@
 from collections import namedtuple
 from pprint import pformat
-from inspect import signature
+from inspect import signature, currentframe, getargvalues
 
 import numpy as np
 from numpy.lib.scimath import sqrt
 
 from mlbspline.eval import evalMultivarSpline
 
+# TODO: probably should move this to a different namespace
 def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
     # TODO: add Va, Cpa
     # TODO: check and document units for all measures
-    # TODO: make it easier to add a new measure
     # TODO: make fn flexible enough to handle gibbsSp in different units (low priority)
     """ Calculates thermodynamic quantities for solutions based on a spline giving Gibbs energy
     This only supports single-solute solutions.
@@ -21,16 +21,19 @@ def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
 
     For developers: to add a new thermodynamic quantity, all of the following should be done:
     NOTE: new quantities cannot be named P, T, or X, as those symbols are reserved for the input (x)
-    - add the measure spec to getSupportedMeasures - read comments in that fn and in _getMeasureSpec for details
-    - create a short function to calculate the measure based on other values such as gibbsSp, x, xm, derivs, tdqout, etc.
+    You will need to read and understand the comments for getSupportedMeasures and _getMeasureSpec
+    - create a short function to calculate the measure based on other values
+        such as gibbsSp, x, xm, derivs, tdqout, etc.
         the procedure should be named with 'eval' + the FULL name for the measure - NOT the symbol / tdq flag
         record the symbol / tdq flag as the return value in comments for the function
         add only parameters required to calculate the measure
-        Be consistent with parameter names used in other functions - hoping to call these automatically soon
-        see evalWaterChemicalPotential function (or any other existing function) for one example
-    - add the measure to the section of this function that sets values in the output value (tdqout)
-        make sure the code follows the code that calculates other measures on which it depends
-        and precedes code calculating measures that depend on it (if adding multiple measures at once)
+        Be consistent with parameter names used in other functions or use the parm* parameters of _getMeasureSpec
+        If you end up with an as-yet unused parameter, add it to _getMeasureSpec (defaulting to OFF)
+         AND to the evaluation section of this function
+    - add the measure spec to getSupportedMeasures -
+        when the comments say DIRECTLY, they mean only consider something a requirement if it is used in
+        the function built in the previous step
+        dependencies will be handed through the reqDerivs and reqTDQ parameters
     - update the comments for param *tdqSpec with the name of the measure and its units
         be sure to add it to the correct section of the comments (PT vs PTX spline, other parameters required, etc)
         or create a new section if one is warranted
@@ -45,7 +48,7 @@ def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
     :param M:       float with molecular weight of solute (kg/mol)
     :param tdqSpec: iterable indicating the thermodynamic quantities to be calculated
                     elements can be either strings showing the names or the TDQ objects from getSupportedMeasures
-                    If not provided, this function will default to calculating the quantities in defTdq2 for a PT spline,
+                    If not provided, this function will calculate the quantities in defTdq2 for a PT spline,
                     and to the union of quantities in defTdq2 and defTdqSpec3 for a PTX spline.
                     Args can be any of the following strings, each representing a thermodynamic quantity
                     that can be calculated based on a Gibbs energy spline.
@@ -74,7 +77,6 @@ def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
     """
     dimCt = gibbsSp['number'].size
     tdqSpec = expandTdqSpec(tdqSpec, dimCt)
-
     _checkNecessaryDataForTDQ(M, dimCt, tdqSpec)
 
     # # prep for calculating apparent values
@@ -84,49 +86,26 @@ def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
     #     x[iX] = adjustConcentrations(x[iX])
 
     tdqout = createThermodynamicQuantitiesObj(dimCt, tdqSpec, x)
-
     derivs = getDerivatives(gibbsSp, x, dimCt, tdqSpec)
     xm = _getxm(tdqSpec, x)
 
-    # generate thermodynamic quantities
-    tdqNames = [t.name for t in tdqSpec]
-    if 'f' in tdqNames:
-        # TODO: document what f is
-        tdqout.f = 1 + M * x[iX]
-    if 'G' in tdqNames:
-        tdqout.G = evalGibbs(gibbsSp, x)
-    if 'Cp' in tdqNames:
-        tdqout.Cp = evalSpecificHeat(xm, derivs)
-    if 'S' in tdqNames:
-        tdqout.S = evalEntropy(derivs)
-    if 'vel' in tdqNames:
-        tdqout.vel = evalSoundSpeed(derivs)
-    if 'rho' in tdqNames:
-        tdqout.rho = evalDensity(derivs)
-    if 'Kt' in tdqNames:
-        tdqout.Kt = evalIsothermalBulkModulus(derivs)
-    if 'Kp' in tdqNames:
-        tdqout.Kp = evalBulkModulusWrtPressure(derivs)
-    if 'Vm' in tdqNames:
-        # TODO: document what Vm is and add a fn for evaluating it
-        tdqout.Vm = (M * derivs.d1P) + (tdqout.f * derivs.dPX)
-    # these need to be done secondarily because they rely on previously generated quantities
-    if 'Ks' in tdqNames:
-        tdqout.Ks = evalIsotropicBulkModulus(tdqout)
-    if 'alpha' in tdqNames:
-        tdqout.alpha = evalThermalExpansivity(derivs, tdqout)
-    if 'U' in tdqNames:
-        tdqout.U = evalInternalEnergy(xm, tdqout)
-    if 'mus' in tdqNames:
-        tdqout.mus = evalSoluteChemicalPotential(M, derivs, tdqout)
-    if 'muw' in tdqNames:
-        tdqout.muw = evalWaterChemicalPotential(xm, derivs, tdqout)
-    if 'Cpm' in tdqNames:
-        # TODO: document what Cpm is and add a fn for evaluating it
-        tdqout.Cpm = M * tdqout.Cp - tdqout.f * derivs.d2T1X * xm[iT]
-    # these depend on secondary quantities
-    if 'H' in tdqNames:
-        tdqout.H = evalEnthalpy(xm, tdqout)
+    # calculate thermodynamic quantities and store in appropriate fields in tdqout
+    comptdq = set()     # list of completed tdqs
+    while len(comptdq) < len(tdqSpec):
+        # get tdqs that either have empty reqTDQ or all of those tdqs have already been calculated
+        # but that are not in comptdq themselves (don't recalculate anything)
+        tdqsToEval = (t for t in tdqSpec if t.name not in comptdq and (not t.reqTDQ or not t.reqTDQ.difference(comptdq)))
+        for t in tdqsToEval:
+            # build args for the calcFn
+            args = dict()
+            if t.reqDerivs: args[t.parmderivs] = derivs
+            if t.reqGrid:   args[t.parmgrid] = xm
+            if t.reqM:      args[t.parmM] = M
+            if t.reqTDQ:    args[t.parmtdq] = tdqout
+            if t.reqSpline: args[t.parmspline] = gibbsSp
+            if t.reqx:      args[t.parmx] = x
+            setattr(tdqout, t.name, t.calcFn(**args))
+            comptdq.add(t.name)
 
     return tdqout
 
@@ -143,11 +122,6 @@ def _checkNecessaryDataForTDQ(M, dimCt, tdqSpec):
     :param tdqSpec: iterable of thermodynamic quantities to be calculated (TDQ objects from getSupportedMeasures)
 
     """
-    # check for completely unsupported measures so no one has to evaluate twice because of a typo
-    if not tdqSpec.issubset(measures):
-        raise ValueError('One or more unsupported measures have been requested: ' +
-                         pformat([t.name for t in tdqSpec.difference(measures)]))
-
     # make sure that spline has 3 dims if quantities using concentration are requested
     reqX = [t for t in tdqSpec if t.reqX]
     if dimCt == 2 and reqX:
@@ -163,19 +137,25 @@ def _checkNecessaryDataForTDQ(M, dimCt, tdqSpec):
     return
 
 
+# TODO: add robust set of tests for this
 def expandTdqSpec(tdqSpec, dimCt):
-    # TODO: add robust set of tests for this
     """ add dependencies for requested thermodynamic quantities or sets default tdqSpec if none provided
     derivatives are handled separately - see getDerivatives
 
-    :param tdqSpec: an iterable with the thermodynamic quantities to be returned
+    :param tdqSpec: an iterable with the names of thermodynamic quantities to be evaluated
     :param dimCt:   the number of dimensions - used if setting the default tdqSpec
-    :return:        a set of TDQ namedtuples that includes those specied by the tdqSpec parameter and all its dependencies
+    :return:        an immutable iterable of TDQ namedtuples that includes those specified by tdqSpec
+                    and all their dependencies
     """
+    # check for completely unsupported measures so no one has to evaluate twice because of a typo
+    if not set(tdqSpec).issubset(measurenames):
+        raise ValueError('One or more unsupported measures have been requested: ' +
+                         pformat([t.name for t in tdqSpec.difference(measures)]))
+
     if len(tdqSpec) == 0:
-        tdqSpec = set(defTdqSpec2)      # make mutable
+        tdqSpec = list(defTdqSpec2)      # make mutable
         if dimCt == 3:
-            tdqSpec |= set(defTdqSpec3)
+            tdqSpec.extend(defTdqSpec3)
     else:
         # add thermodynamic quantities on which requested ones depend
         tdqSpec = _addTDQDependencies(tdqSpec)
@@ -184,9 +164,10 @@ def expandTdqSpec(tdqSpec, dimCt):
 
 
 def createThermodynamicQuantitiesObj(dimCt, tdqSpec, x):
-    svn = set(['P', 'T'] + ([] if dimCt == 2 else ['X']))
+    flds = {t.name for t in tdqSpec} | set(['P', 'T'] + ([] if dimCt == 2 else ['X']))
     # TODO: include derivs in output?  fnGval returns d1P/d2P/d3P, but no others
-    out = namedtuple('ThermodynamicQuantities', {t.name for t in tdqSpec} & svn)
+    TDQ = type('ThermodynamicQuantities', (object,), {i:None for i in flds})
+    out = TDQ()
     # include input in the output so you always know the conditions for the thermodynamic quantities
     for i in range(0,dimCt):
         if i == iP:     out.P = x[i]
@@ -240,6 +221,16 @@ def _getxm(tdqSpec, x):
         return np.meshgrid(*x.tolist(), indexing='ij')    # grid the dimensions of x
     else:
         return []
+
+
+def evalf(M, x):
+    """
+    :param M:   molecular weight
+    :param x:   x input to evalSolutionGibbs
+    :return:    f
+    """
+    # TODO: document what f is and rename this function accordingly
+    return 1 + M * x[iX]
 
 
 def evalGibbs(gibbsSp, x):
@@ -344,56 +335,90 @@ def evalEnthalpy(xm, tdq):
     return tdq.U - xm[iT] * tdq.S
 
 
-def _getTDQSpec(name, reqX=False, reqM=False, reqGrid=False, reqDerivs=[], reqTDQ=[]):
+def evalVm(M, derivs, tdq):
+    """
+    :return:        Vm
+    """
+    # TODO: document what Vm is and rename this fn
+    return (M * derivs.d1P) + (tdq.f * derivs.dPX)
+
+
+def evalCpm(M, tdq, derivs, xm):
+    """
+    :return:    Cpm
+    """
+    # TODO: document what Cpm is and rename this fn accordingly
+    return M * tdq.Cp - tdq.f * derivs.d2T1X * xm[iT]
+
+
+def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='xm',
+                reqDerivs=[], parmderivs='derivs', reqTDQ=[], parmtdq='tdq', reqSpline=False, parmspline='gibbsSp',
+                reqx=False, parmx='x'):
     """ Returns a TDQ namedtuple indicating what is required to calculate this particular thermodynamic quantity (tdq)
     :param name:        the name / symbol of the tdq (e.g., G, rho, alpha, muw)
+    :param calcFn:      the name of the function used to calculate the tdq
     :param reqX:        True if DIRECTLY calculating the tdq requires concentration.  False otherwise
     :param reqM:        True if DIRECTLY calculating the tdq requires molecular weight.  False otherwise
+    :param parmM:       the name of the parameter of calcFn used to pass in M if reqM
     :param reqGrid:     True if DIRECTLY calculating the tdq requires you to grid the PT[X] values.  False otherwise
+    :param parmgrid:    the name of the parameter of calcFn used to pass in the gridded input dimensions if reqGrid
     :param reqDerivs:   A list of derivatives needed to DIRECTLY calculate the tdq
                         (e.g. for tdq Kp, this would be ['d1P','dP','d3P'] - see fn evalBulkModulusWrtPressure)
                         See getDerivatives for a full list of derivatives that can be calculated
+    :param parmderivs:  the name of the parameter of calcFn used to pass in the pre-calculated derivatives if reqDerivs
     :param reqTDQ:      A list of other thermodynamic quantities needed to DIRECTLY calculate the tdq
                         (e.g. for tdq U, this would be ['G','rho'] - see fn evalInternalEnergy)
+    :param parmtdq:     the name of the parameter of calcFn used to pass in the tdqout if reqTDQ
+    :param reqSpline:   If True, calcFn needs the spline definition
+    :param parmspline:  the name of the parameter of calcFn used to pass in the spline def if reqSpline
+    :param reqx:        If True, calcFn needs the original dimension input (parm x in evalSolutionGibbs) to run
+    :param parmx:       the name of the parameter of calcFn used to pass in the original input if reqx
     :return:            a namedtuple giving the spec for the tdq
     """
-    # TODO: probably better to write a full class so the equality method can check by name
-    # TODO: figure out how to add the function associated with a tdq and automatically call it based on the spec
-    out = namedtuple('TDQ', signature(_getTDQSpec).parameters.keys())
-    # TODO: figure out how to do this in a meta way like the previous line
-    out.name = name
-    out.reqX=reqX
-    out.reqM=reqM
-    out.reqGrid=reqGrid
-    out.reqDerivs=reqDerivs
-    out.reqTDQ=reqTDQ
-    return out
+    arginfo = getargvalues(currentframe())
+    flds = arginfo.args
+    # TODO: do this in a meta way?
+    if not reqM:        flds.remove('parmM')
+    if not reqGrid:     flds.remove('parmgrid')
+    if not reqDerivs:   flds.remove('parmderivs')
+    if not reqTDQ:      flds.remove('parmtdq')
+    if not reqSpline:   flds.remove('parmspline')
+    if not reqx:        flds.remove('parmx')
+    vals = [arginfo.locals[v] for v in arginfo.locals if v in flds]
+    for i in ['reqDerivs','reqTDQ']:    # make these sets to simplify some later logic in evalSolutionGibbs
+        d = flds.index(i)
+        vals[d] = set(vals[d])
+
+    tdqspec = namedtuple('TDQSpec', flds, defaults=vals)
+    return tdqspec()
+
 
 def getSupportedThermodynamicQuantities():
     """ When adding new tdqs, you don't need to worry about adding them in any particular order -
         dependencies are handled elsewhere
-        See also the comments for _getTDQSpec
+        See also the comments for _getTDQSpec and evalSolutionGibbs
 
-    :return: the full set of thermodynamic quantities supported by this module
+    :return: immutable iterable with the the full set of specs for thermodynamic quantities supported by this module
     """
-    return frozenset([
-        _getTDQSpec('G'),  # it's true - G needs nothing but the spline
-        _getTDQSpec('rho', reqDerivs=['d1P']),
-        _getTDQSpec('vel', reqDerivs=['d1P', 'dPT', 'd2T', 'd2P']),
-        _getTDQSpec('Cp', reqGrid=True, reqDerivs=['d2T']),
-        _getTDQSpec('alpha', reqDerivs=['dPT'], reqTDQ=['rho']),
-        _getTDQSpec('U', reqGrid=True, reqTDQ=['G', 'rho', 'S']),
-        _getTDQSpec('H', reqGrid=True, reqTDQ=['U', 'S']),
-        _getTDQSpec('S', reqDerivs=['d1T']),
-        _getTDQSpec('Kt', reqDerivs=['d1P', 'd2P']),
-        _getTDQSpec('Kp', reqDerivs=['d1P', 'd2P', 'd3P']),
-        _getTDQSpec('Ks', reqTDQ=['rho', 'vel']),
-        _getTDQSpec('f', reqX=True, reqM=True),
-        _getTDQSpec('mus', reqM=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
-        _getTDQSpec('muw', reqGrid=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
-        _getTDQSpec('Vm', reqM=True, reqDerivs=['d1P', 'dPX'], reqTDQ=['f']),
-        _getTDQSpec('Cpm', reqM=True, reqGrid=True, reqDerivs=['d2T1X'], reqTDQ=['Cp', 'f'])
-            ])
+    return (
+        _getTDQSpec('G', evalGibbs, reqSpline=True, reqx=True),
+        _getTDQSpec('rho', evalDensity, reqDerivs=['d1P']),
+        _getTDQSpec('vel', evalSoundSpeed, reqDerivs=['d1P', 'dPT', 'd2T', 'd2P']),
+        _getTDQSpec('Cp', evalSpecificHeat, reqGrid=True, reqDerivs=['d2T']),
+        _getTDQSpec('alpha', evalThermalExpansivity, reqDerivs=['dPT'], reqTDQ=['rho']),
+        _getTDQSpec('U', evalInternalEnergy, reqGrid=True, reqTDQ=['G', 'rho', 'S']),
+        _getTDQSpec('H', evalEnthalpy, reqGrid=True, reqTDQ=['U', 'S']),
+        _getTDQSpec('S', evalEntropy, reqDerivs=['d1T']),
+        _getTDQSpec('Kt', evalIsothermalBulkModulus, reqDerivs=['d1P', 'd2P']),
+        _getTDQSpec('Kp', evalBulkModulusWrtPressure, reqDerivs=['d1P', 'd2P', 'd3P']),
+        _getTDQSpec('Ks', evalIsotropicBulkModulus, reqTDQ=['rho', 'vel']),
+        _getTDQSpec('f', evalf, reqX=True, reqM=True, reqx=True),
+        _getTDQSpec('mus', evalSoluteChemicalPotential, reqM=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
+        _getTDQSpec('muw', evalWaterChemicalPotential, reqX=True, reqGrid=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
+        _getTDQSpec('Vm', evalVm, reqM=True, reqDerivs=['d1P', 'dPX'], reqTDQ=['f']),
+        _getTDQSpec('Cpm', evalCpm, reqM=True, reqGrid=True, reqDerivs=['d2T1X'], reqTDQ=['Cp', 'f'])
+            )
+
 
 def _addTDQDependencies(origTDQs):
     """ recursively adds thermodynamic quantities on which origTDQs are dependent
@@ -401,10 +426,10 @@ def _addTDQDependencies(origTDQs):
 
     :param origTDQs:    an iterable of TDQs to check for dependencies
                         elements can be either the string names of measures or the TDQ objects
-    :return:            set of TDQ objects including origTDQs and any TDQs on which they are
+    :return:            immutable iterable of TDQ objects including origTDQs and any TDQs on which they are
                         directly or indirectly dependent
     """
-    otnames = origTDQs if isinstance(next(iter(origTDQs)), str) else {m.name for m in origTDQs}
+    otnames = set(origTDQs) if isinstance(next(iter(origTDQs)), str) else {m.name for m in origTDQs}
     while True:
         # get TDQs dependent on TDQs in otnames
         reqot = {m.name for m in measures for t in m.reqTDQ if t in otnames}
@@ -414,15 +439,15 @@ def _addTDQDependencies(origTDQs):
         else:
             # add the new list of tdqs and repeat the loop to add more nested dependencies
             otnames = otnames.union(reqot)
-    return set([m for m in measures if m.name in otnames])
+    return (m for m in measures if m.name in otnames)
+
 
 def _setDefaultTdqSpecs():
     # concentration required if the flag says it does or if it uses a concentration derivative
-    xreq = {m for m in measures if m.reqX or [d for d in m.reqDerivs if 'X' in d]}
+    xreq = [m for m in measures if m.reqX or [d for d in m.reqDerivs if 'X' in d]]
     xreq = [r.name for r in _addTDQDependencies(xreq)]
-    defspec3 = frozenset([m for m in measures if m.name in xreq])
-    return measures.difference(defspec3), defspec3
-
+    # return values should be immutable - use tuples as TDQSpec namedtuples are not hashable so set is not usable
+    return (m for m in measures if m.name not in xreq), (m for m in measures if m.name in xreq)
 
 
 
@@ -436,6 +461,7 @@ iP = 0; iT = 1; iX = 2
 # default derivative
 defDer = 0
 measures = getSupportedThermodynamicQuantities()
+measurenames = {m.name for m in measures}
 defTdqSpec2, defTdqSpec3 = _setDefaultTdqSpecs()
 
 
