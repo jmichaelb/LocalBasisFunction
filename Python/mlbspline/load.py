@@ -40,8 +40,9 @@ def getSplineDict(matSp):
         'coefs':    matSp[0][0][flds.index('coefs')]
     }
     # note: if dim = 1 and coefs has dimensions [1 number], the coefs should be reshaped
-    if (out['dim'] == np.array([1])).all() & \
-            (np.concatenate((np.array([1]), out['number'])) == np.array(out['coefs'].shape)).all():
+    # e.g. number is [50,20] but coefs has shape (1,50,20)
+    if out['dim'].size == 1 and out['dim'][0] == 1 and \
+            np.array_equal(np.concatenate((out['dim'], out['number'])), np.array(out['coefs'].shape)):
         out['coefs'] = out['coefs'][0,] # just select the single value from the dimension with size 1
     return out
 
