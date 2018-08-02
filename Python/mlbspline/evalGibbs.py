@@ -1,6 +1,8 @@
 from collections import namedtuple
 from pprint import pformat
 from inspect import signature, currentframe, getargvalues
+from time import time
+from datetime import datetime
 
 import numpy as np
 from numpy.lib.scimath import sqrt
@@ -8,9 +10,10 @@ from numpy.lib.scimath import sqrt
 from mlbspline.eval import evalMultivarSpline
 
 # TODO: probably should move this to a different namespace
-def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
+def evalSolutionGibbs(gibbsSp, x, M=0, verbose=False, *tdqSpec):
     # TODO: add Va, Cpa
     # TODO: check and document units for all measures
+    # TODO: add logging? possibly in stead of verbose
     # TODO: make fn flexible enough to handle gibbsSp in different units (low priority)
     """ Calculates thermodynamic quantities for solutions based on a spline giving Gibbs energy
     This only supports single-solute solutions.
@@ -46,6 +49,7 @@ def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
                     the number and index of dimensions must be same as in the spline (x.size == gibbsSp['number'].size)
                     and each dimension must be sorted (low to high)
     :param M:       float with molecular weight of solute (kg/mol)
+    :param verbose: boolean indicating whether to print status updates
     :param tdqSpec: iterable indicating the thermodynamic quantities to be calculated
                     elements can be either strings showing the names or the TDQ objects from getSupportedMeasures
                     If not provided, this function will calculate the quantities in defTdq2 for a PT spline,
@@ -86,7 +90,7 @@ def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
     #     x[iX] = adjustConcentrations(x[iX])
 
     tdqout = createThermodynamicQuantitiesObj(dimCt, tdqSpec, x)
-    derivs = getDerivatives(gibbsSp, x, dimCt, tdqSpec)
+    derivs = getDerivatives(gibbsSp, x, dimCt, tdqSpec, verbose)
     xm = _getxm(tdqSpec, x)
 
     # calculate thermodynamic quantities and store in appropriate fields in tdqout
@@ -94,7 +98,7 @@ def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
     while len(comptdq) < len(tdqSpec):
         # get tdqs that either have empty reqTDQ or all of those tdqs have already been calculated
         # but that are not in comptdq themselves (don't recalculate anything)
-        tdqsToEval = (t for t in tdqSpec if t.name not in comptdq and (not t.reqTDQ or not t.reqTDQ.difference(comptdq)))
+        tdqsToEval = tuple(t for t in tdqSpec if t.name not in comptdq and (not t.reqTDQ or not t.reqTDQ.difference(comptdq)))
         for t in tdqsToEval:
             # build args for the calcFn
             args = dict()
@@ -104,7 +108,10 @@ def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
             if t.reqTDQ:    args[t.parmtdq] = tdqout
             if t.reqSpline: args[t.parmspline] = gibbsSp
             if t.reqx:      args[t.parmx] = x
+            start = time()
             setattr(tdqout, t.name, t.calcFn(**args))
+            end = time()
+            if verbose: _printTiming('tdq '+t.name, start, end)
             comptdq.add(t.name)
 
     return tdqout
@@ -200,14 +207,18 @@ def _buildDerivDirective(derivSpec, dimCt):
     return out
 
 
-def getDerivatives(gibbsSp, x, dimCt, tdqSpec):
+def getDerivatives(gibbsSp, x, dimCt, tdqSpec, verbose=False):
     GibbsDerivs = _createGibbsDerivativesClass(tdqSpec)
     out = GibbsDerivs()
     reqderivs = {d for t in tdqSpec for d in t.reqDerivs}   # get set of derivative names that are needed
     getDerivSpec = lambda dn: next(d for d in derivatives if d.name == dn)
     for rd in reqderivs:
         derivDirective = _buildDerivDirective(getDerivSpec(rd), dimCt)
+        start = time()
         setattr(out, rd,  evalMultivarSpline(gibbsSp, x, derivDirective))
+        end = time()
+        if verbose: _printTiming('deriv '+rd, start, end)
+
     return out
 
 
@@ -353,6 +364,7 @@ def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     :param name:        the name / symbol of the tdq (e.g., G, rho, alpha, muw)
     :param calcFn:      the name of the function used to calculate the tdq
     :param reqX:        True if DIRECTLY calculating the tdq requires concentration.  False otherwise
+                        note difference from reqx!!
     :param reqM:        True if DIRECTLY calculating the tdq requires molecular weight.  False otherwise
     :param parmM:       the name of the parameter of calcFn used to pass in M if reqM
     :param reqGrid:     True if DIRECTLY calculating the tdq requires you to grid the PT[X] values.  False otherwise
@@ -368,6 +380,7 @@ def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     :param reqSpline:   If True, calcFn needs the spline definition
     :param parmspline:  the name of the parameter of calcFn used to pass in the spline def if reqSpline
     :param reqx:        If True, calcFn needs the original dimension input (parm x in evalSolutionGibbs) to run
+                        note difference from reqX!!
     :param parmx:       the name of the parameter of calcFn used to pass in the original input if reqx
     :return:            a namedtuple giving the spec for the tdq
     """
@@ -398,7 +411,7 @@ def getSupportedThermodynamicQuantities():
 
     :return: immutable iterable with the the full set of specs for thermodynamic quantities supported by this module
     """
-    return (
+    out = tuple([
         _getTDQSpec('G', evalGibbs, reqSpline=True, reqx=True),
         _getTDQSpec('rho', evalDensity, reqDerivs=['d1P']),
         _getTDQSpec('vel', evalSoundSpeed, reqDerivs=['d1P', 'dPT', 'd2T', 'd2P']),
@@ -415,7 +428,13 @@ def getSupportedThermodynamicQuantities():
         _getTDQSpec('muw', evalWaterChemicalPotential, reqX=True, reqGrid=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
         _getTDQSpec('Vm', evalVm, reqM=True, reqDerivs=['d1P', 'dPX'], reqTDQ=['f']),
         _getTDQSpec('Cpm', evalCpm, reqM=True, reqGrid=True, reqDerivs=['d2T1X'], reqTDQ=['Cp', 'f'])
-            )
+            ])
+    # check that all reqTDQs are represented in the list
+    outnames = frozenset([t.name for t in out])
+    unrecognizedDependencies = [(tdq.name, dep) for tdq in out for dep in tdq.reqTDQ if dep not in outnames]
+    if unrecognizedDependencies:
+        raise ValueError('One or more measures depend on an unrecognized TDQ: '+pformat(unrecognizedDependencies))
+    return out, outnames
 
 
 def getSupportedDerivatives():
@@ -426,7 +445,7 @@ def getSupportedDerivatives():
 
     :return:    an immutable iterable containing a list of supported derivatives
     """
-    return (
+    return tuple([
         derivSpec('d1P', wrtP=1),
         derivSpec('d1T', wrtT=1),
         derivSpec('d1X', wrtX=1),
@@ -436,7 +455,7 @@ def getSupportedDerivatives():
         derivSpec('d2T', wrtT=2),
         derivSpec('d2T1X', wrtT=2, wrtX=1),
         derivSpec('d3P', wrtP=3)
-    )
+    ])
 
 
 def _addTDQDependencies(origTDQs):
@@ -451,14 +470,14 @@ def _addTDQDependencies(origTDQs):
     otnames = set(origTDQs) if isinstance(next(iter(origTDQs)), str) else {m.name for m in origTDQs}
     while True:
         # get TDQs dependent on TDQs in otnames
-        reqot = {m.name for m in measures for t in m.reqTDQ if t in otnames}
+        reqot = {t for m in measures if m.name in otnames for t in m.reqTDQ}
         # if every tdq in reqot is already in otnames, stop
         if reqot.issubset(otnames):
             break
         else:
             # add the new list of tdqs and repeat the loop to add more nested dependencies
             otnames = otnames.union(reqot)
-    return (m for m in measures if m.name in otnames)
+    return tuple([m for m in measures if m.name in otnames])
 
 
 def _setDefaultTdqSpecs():
@@ -466,7 +485,12 @@ def _setDefaultTdqSpecs():
     xreq = [m for m in measures if m.reqX or [d for d in m.reqDerivs if 'X' in d]]
     xreq = [r.name for r in _addTDQDependencies(xreq)]
     # return values should be immutable - use tuples as TDQSpec namedtuples are not hashable so set is not usable
-    return (m for m in measures if m.name not in xreq), (m for m in measures if m.name in xreq)
+    return tuple([m for m in measures if m.name not in xreq]), tuple([m for m in measures if m.name in xreq])
+
+
+def _printTiming(calcdesc, start, end):
+    endDT = datetime.fromtimestamp(end)
+    print(endDT.strftime('%H:%M:%S.%f'), ':\t', calcdesc,'took',str(end-start),'seconds to calculate')
 
 
 
@@ -482,8 +506,7 @@ derivSpec = namedtuple('DerivativeSpec', ['name', 'wrtP', 'wrtT', 'wrtX'], defau
 derivatives = getSupportedDerivatives()
 derivativenames = {d.name for d in derivatives}
 
-measures = getSupportedThermodynamicQuantities()
-measurenames = {m.name for m in measures}
+measures, measurenames = getSupportedThermodynamicQuantities()
 defTdqSpec2, defTdqSpec3 = _setDefaultTdqSpecs()
 
 
