@@ -19,21 +19,21 @@ def evalSolutionGibbs(gibbsSp, x, M=0, *tdqSpec):
     Warning: units must be as specified here because some conversions are hardcoded into this function.
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    For developers: to add a new thermodynamic quantity, all of the following should be done:
+    For developers: to add a new thermodynamic quantity (TDQ), all of the following should be done:
     NOTE: new quantities cannot be named P, T, or X, as those symbols are reserved for the input (x)
-    You will need to read and understand the comments for getSupportedMeasures and _getMeasureSpec
+    You will need to read and understand the comments for getSupportedMeasures and _getTDQSpec
     - create a short function to calculate the measure based on other values
         such as gibbsSp, x, xm, derivs, tdqout, etc.
         the procedure should be named with 'eval' + the FULL name for the measure - NOT the symbol / tdq flag
         record the symbol / tdq flag as the return value in comments for the function
         add only parameters required to calculate the measure
-        Be consistent with parameter names used in other functions or use the parm* parameters of _getMeasureSpec
-        If you end up with an as-yet unused parameter, add it to _getMeasureSpec (defaulting to OFF)
+        Be consistent with parameter names used in other functions or use the parm* parameters of _getTDQSpec
+        If you end up with an as-yet unused parameter, add it to _getTDQSpec (defaulting to OFF)
          AND to the evaluation section of this function
-    - add the measure spec to getSupportedMeasures -
+    - add the measure spec to getSupportedThermodynamicQuantities -
         when the comments say DIRECTLY, they mean only consider something a requirement if it is used in
         the function built in the previous step
-        dependencies will be handed through the reqDerivs and reqTDQ parameters
+        dependencies (including nested dependencies) will be handed through the reqDerivs and reqTDQ parameters
     - update the comments for param *tdqSpec with the name of the measure and its units
         be sure to add it to the correct section of the comments (PT vs PTX spline, other parameters required, etc)
         or create a new section if one is warranted
@@ -187,32 +187,27 @@ def createThermodynamicQuantitiesObj(dimCt, tdqSpec, x):
 #     return out
 
 
-def _createGibbsDerivativesObj(tdqSpec):
-    return namedtuple('GibbsDerivatives', {d for t in tdqSpec if t.reqDerivs for d in t.reqDerivs})
+def _createGibbsDerivativesClass(tdqSpec):
+    flds = {d for t in tdqSpec if t.reqDerivs for d in t.reqDerivs}
+    return type('GibbsDerivatives', (object,), {d:None for t in tdqSpec if t.reqDerivs for d in t.reqDerivs})
+
+
+def _buildDerivDirective(derivSpec, dimCt):
+    out = [defDer] * dimCt
+    if derivSpec.wrtP: out[iP] = derivSpec.wrtP
+    if derivSpec.wrtT: out[iT] = derivSpec.wrtT
+    if derivSpec.wrtX: out[iX] = derivSpec.wrtX
+    return out
 
 
 def getDerivatives(gibbsSp, x, dimCt, tdqSpec):
-    out = _createGibbsDerivativesObj(tdqSpec)
-    reqderiv = lambda d: [t for t in tdqSpec if d in t.reqDerivs]
-    if reqderiv('d1P'):
-        out.d1P = evalMultivarSpline(gibbsSp, x, [1 if i == iP else defDer for i in range(0, dimCt)])
-    if reqderiv('d1T'):
-        out.d1T = evalMultivarSpline(gibbsSp, x, [1 if i == iT else defDer for i in range(0, dimCt)])
-    if reqderiv('d1X'):
-        out.d1X = evalMultivarSpline(gibbsSp, x, [1 if i == iX else defDer for i in range(0, dimCt)])
-    if reqderiv('dPT'):
-        out.dPT = evalMultivarSpline(gibbsSp, x, [1 if (i == iP or i == iT) else defDer for i in range(0, dimCt)])
-    if reqderiv('dPX'):
-        out.dPX = evalMultivarSpline(gibbsSp, x, [1 if (i == iP or i == iX) else defDer for i in range(0, dimCt)])
-    if reqderiv('d2P'):
-        out.d2P = evalMultivarSpline(gibbsSp, x, [2 if i == iP else defDer for i in range(0, dimCt)])
-    if reqderiv('d2T'):
-        out.d2T = evalMultivarSpline(gibbsSp, x, [2 if i == iT else defDer for i in range(0, dimCt)])
-    if reqderiv('d2T1X'):
-        out.d2T1X = evalMultivarSpline(gibbsSp, x,
-                                             [2 if i == iT else (1 if i == iX else defDer) for i in range(0, dimCt)])
-    if reqderiv('d3P'):
-        out.d3P = evalMultivarSpline(gibbsSp, x, [3 if i == iP else defDer for i in range(0, dimCt)])
+    GibbsDerivs = _createGibbsDerivativesClass(tdqSpec)
+    out = GibbsDerivs()
+    reqderivs = {d for t in tdqSpec for d in t.reqDerivs}   # get set of derivative names that are needed
+    getDerivSpec = lambda dn: next(d for d in derivatives if d.name == dn)
+    for rd in reqderivs:
+        derivDirective = _buildDerivDirective(getDerivSpec(rd), dimCt)
+        setattr(out, rd,  evalMultivarSpline(gibbsSp, x, derivDirective))
     return out
 
 
@@ -354,7 +349,7 @@ def evalCpm(M, tdq, derivs, xm):
 def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='xm',
                 reqDerivs=[], parmderivs='derivs', reqTDQ=[], parmtdq='tdq', reqSpline=False, parmspline='gibbsSp',
                 reqx=False, parmx='x'):
-    """ Returns a TDQ namedtuple indicating what is required to calculate this particular thermodynamic quantity (tdq)
+    """ Builds a TDQSpec namedtuple indicating what is required to calculate this particular thermodynamic quantity
     :param name:        the name / symbol of the tdq (e.g., G, rho, alpha, muw)
     :param calcFn:      the name of the function used to calculate the tdq
     :param reqX:        True if DIRECTLY calculating the tdq requires concentration.  False otherwise
@@ -368,6 +363,7 @@ def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     :param parmderivs:  the name of the parameter of calcFn used to pass in the pre-calculated derivatives if reqDerivs
     :param reqTDQ:      A list of other thermodynamic quantities needed to DIRECTLY calculate the tdq
                         (e.g. for tdq U, this would be ['G','rho'] - see fn evalInternalEnergy)
+                        Note: recursive dependencies are not supported
     :param parmtdq:     the name of the parameter of calcFn used to pass in the tdqout if reqTDQ
     :param reqSpline:   If True, calcFn needs the spline definition
     :param parmspline:  the name of the parameter of calcFn used to pass in the spline def if reqSpline
@@ -375,9 +371,14 @@ def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     :param parmx:       the name of the parameter of calcFn used to pass in the original input if reqx
     :return:            a namedtuple giving the spec for the tdq
     """
+    reqTDQ = set(reqTDQ); reqDerivs = set(reqDerivs)    # make these sets to enforce uniqueness and immutability
+    if name in reqTDQ:
+        raise ValueError('Recursive dependencies are not supported.  Amend the ' + name + ' TDQSpec accordingly')
+    if reqDerivs.difference(derivativenames):
+        raise ValueError('One or more derivatives are not supported. Amend the ' + name + ' TDQSpec accordingly.' +
+                         'Supported derivatives are '+pformat(derivativenames))
     arginfo = getargvalues(currentframe())
     flds = arginfo.args
-    # TODO: do this in a meta way?
     if not reqM:        flds.remove('parmM')
     if not reqGrid:     flds.remove('parmgrid')
     if not reqDerivs:   flds.remove('parmderivs')
@@ -385,9 +386,6 @@ def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     if not reqSpline:   flds.remove('parmspline')
     if not reqx:        flds.remove('parmx')
     vals = [arginfo.locals[v] for v in arginfo.locals if v in flds]
-    for i in ['reqDerivs','reqTDQ']:    # make these sets to simplify some later logic in evalSolutionGibbs
-        d = flds.index(i)
-        vals[d] = set(vals[d])
 
     tdqspec = namedtuple('TDQSpec', flds, defaults=vals)
     return tdqspec()
@@ -418,6 +416,27 @@ def getSupportedThermodynamicQuantities():
         _getTDQSpec('Vm', evalVm, reqM=True, reqDerivs=['d1P', 'dPX'], reqTDQ=['f']),
         _getTDQSpec('Cpm', evalCpm, reqM=True, reqGrid=True, reqDerivs=['d2T1X'], reqTDQ=['Cp', 'f'])
             )
+
+
+def getSupportedDerivatives():
+    """ Define a name for a derivative of Gibbs energy
+    and the derivative order with respect to P, T, and X required to calculate it
+    (if not provided, all default to defDer)
+    These can then be used in a TDQSpec
+
+    :return:    an immutable iterable containing a list of supported derivatives
+    """
+    return (
+        derivSpec('d1P', wrtP=1),
+        derivSpec('d1T', wrtT=1),
+        derivSpec('d1X', wrtX=1),
+        derivSpec('dPT', wrtP=1, wrtT=1),
+        derivSpec('dPX', wrtP=1, wrtX=1),
+        derivSpec('d2P', wrtP=2),
+        derivSpec('d2T', wrtT=2),
+        derivSpec('d2T1X', wrtT=2, wrtX=1),
+        derivSpec('d3P', wrtP=3)
+    )
 
 
 def _addTDQDependencies(origTDQs):
@@ -456,13 +475,18 @@ def _setDefaultTdqSpecs():
 #########################################
 # TODO: Change to 18.01528? has a 10 oom effect on ML - Python calcs for muw (but relative still only ~1e-6)
 nw = 1000/18.0152       # moles/kg for pure water
-# dimension indices
-iP = 0; iT = 1; iX = 2
-# default derivative
-defDer = 0
+iP = 0; iT = 1; iX = 2  # dimension indices
+defDer = 0              # default derivative
+
+derivSpec = namedtuple('DerivativeSpec', ['name', 'wrtP', 'wrtT', 'wrtX'], defaults=[None, defDer, defDer, defDer])
+derivatives = getSupportedDerivatives()
+derivativenames = {d.name for d in derivatives}
+
 measures = getSupportedThermodynamicQuantities()
 measurenames = {m.name for m in measures}
 defTdqSpec2, defTdqSpec3 = _setDefaultTdqSpecs()
+
+
 
 
 
