@@ -68,6 +68,7 @@ def evalSolutionGibbs(gibbsSp, x, M=0, verbose=False, *tdqSpec):
                         Kt          returns isothermal bulk modulus
                         Kp          returns bulk modulus pressure derivative
                         Ks          returns isotropic bulk modulus
+                        V           returns unit volume in m^3/kg
                         -------------------------------------------- below this line, require PTX spline and non-zero M
                         mus         returns solute chemical potential
                         muw         returns water chemical potential
@@ -356,6 +357,13 @@ def evalCpm(M, tdq, derivs, xm):
     # TODO: document what Cpm is and rename this fn accordingly
     return M * tdq.Cp - tdq.f * derivs.d2T1X * xm[iT]
 
+def evalVolume(tdq):
+    """
+    :return:    V
+    """
+    return np.power(tdq.rho, -1)
+
+
 
 def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='xm',
                 reqDerivs=[], parmderivs='derivs', reqTDQ=[], parmtdq='tdq', reqSpline=False, parmspline='gibbsSp',
@@ -427,7 +435,8 @@ def getSupportedThermodynamicQuantities():
         _getTDQSpec('mus', evalSoluteChemicalPotential, reqM=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
         _getTDQSpec('muw', evalWaterChemicalPotential, reqX=True, reqGrid=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
         _getTDQSpec('Vm', evalVm, reqM=True, reqDerivs=['d1P', 'dPX'], reqTDQ=['f']),
-        _getTDQSpec('Cpm', evalCpm, reqM=True, reqGrid=True, reqDerivs=['d2T1X'], reqTDQ=['Cp', 'f'])
+        _getTDQSpec('Cpm', evalCpm, reqM=True, reqGrid=True, reqDerivs=['d2T1X'], reqTDQ=['Cp', 'f']),
+        _getTDQSpec('V', evalVolume, reqTDQ=['rho'])
             ])
     # check that all reqTDQs are represented in the list
     outnames = frozenset([t.name for t in out])
