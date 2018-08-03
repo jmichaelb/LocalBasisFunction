@@ -66,14 +66,16 @@ def evalSolutionGibbs(gibbsSp, x, M=0, verbose=False, *tdqSpec):
                         H           returns enthalpy
                         S           returns entropy
                         Kt          returns isothermal bulk modulus
-                        Kp          returns bulk modulus pressure derivative
+                        Kp          returns pressure derivatives of isothermal bulk modulus
                         Ks          returns isotropic bulk modulus
                         V           returns unit volume in m^3/kg
                         -------------------------------------------- below this line, require PTX spline and non-zero M
                         mus         returns solute chemical potential
                         muw         returns water chemical potential
-                        Vm          ??
-                        Cpm         ??
+                        Vm          returns partial molar volume
+                        Cpm         returns partial molar heat capacity
+                        Cpa         returns apparent heat capacity
+                        Va          returns apparent volume
     :return:        a named tuple with the requested thermodynamic values
                     as named properties matching the measures requested in the *tdq parameter of this function
                     the x value is also included as tuple for reference
@@ -230,13 +232,10 @@ def _getxm(tdqSpec, x):
         return []
 
 
-def evalf(M, x):
-    """
-    :param M:   molecular weight
-    :param x:   x input to evalSolutionGibbs
+def evalVolWaterInVolSolutionConversion(M, x):
+    """ Conversion factor for how much of the volume of 1 kg of solution is really just the water
     :return:    f
     """
-    # TODO: document what f is and rename this function accordingly
     return 1 + M * x[iX]
 
 
@@ -283,16 +282,15 @@ def evalIsothermalBulkModulus(derivs):
     return -1 * derivs.d1P / derivs.d2P
 
 
-def evalBulkModulusWrtPressure(derivs):
+def evalIsothermalBulkModulusWrtPressure(derivs):
     """
-    :return:        Kp
+    :return:        Kp (K')
     """
     return derivs.d1P * np.power(derivs.d2P, -2) * derivs.d3P - 1
 
 
 def evalIsotropicBulkModulus(tdq):
     """
-    :param tdq:     the ThermodynamicQuantities namedtuple that stores already-calculated values
     :return:        Ks
     """
     return tdq.rho * np.power(tdq.vel, 2) / 1e6
@@ -342,20 +340,19 @@ def evalEnthalpy(xm, tdq):
     return tdq.U - xm[iT] * tdq.S
 
 
-def evalVm(M, derivs, tdq):
-    """
+def evalPartialMolarVolume(M, derivs, tdq):
+    """ Slope at a point of the V v. X graph
     :return:        Vm
     """
-    # TODO: document what Vm is and rename this fn
     return (M * derivs.d1P) + (tdq.f * derivs.dPX)
 
 
-def evalCpm(M, tdq, derivs, xm):
+def evalPartialMolarHeatCapacity(M, tdq, derivs, xm):
     """
     :return:    Cpm
     """
-    # TODO: document what Cpm is and rename this fn accordingly
     return M * tdq.Cp - tdq.f * derivs.d2T1X * xm[iT]
+
 
 def evalVolume(tdq):
     """
@@ -363,6 +360,26 @@ def evalVolume(tdq):
     """
     return np.power(tdq.rho, -1)
 
+
+# TODO: implement once key questions are answered
+def evalApparentSpecificHeat(x, xm, tdq):
+    """
+    :return:    Cpa
+    """
+    # zeroXIdx = x[iX][x[iX]==0]      # returns empty array if nothing there
+    # zeroXCp = np.squeeze(tdq.Cp[:,:,zeroXIdx])
+    # return tdq.Cp * tdq.f -
+    #Cpa=(Cp.*f -repmat(squeeze(Cp(:,:,1)),1,1,length(m)))./mm;
+    return None
+
+
+# TODO: implement once key questions are answered
+def evalApparentVolume(x, xm, tdq):
+    """ slope of a chord between pure water and a concentration on a V v. X graph
+    :return:    Va
+    """
+    # Va=1e6*(V.*f - repmat(squeeze(V(:,:,1)),1,1,length(m)))./mm;
+    return None
 
 
 def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='xm',
@@ -372,13 +389,14 @@ def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     :param name:        the name / symbol of the tdq (e.g., G, rho, alpha, muw)
     :param calcFn:      the name of the function used to calculate the tdq
     :param reqX:        True if DIRECTLY calculating the tdq requires concentration.  False otherwise
-                        note difference from reqx!!
+                        note difference from reqx!! this parm (reqX) means the procedure uses concentration
+                        or a concentration derivative of Gibbs energy
     :param reqM:        True if DIRECTLY calculating the tdq requires molecular weight.  False otherwise
     :param parmM:       the name of the parameter of calcFn used to pass in M if reqM
     :param reqGrid:     True if DIRECTLY calculating the tdq requires you to grid the PT[X] values.  False otherwise
     :param parmgrid:    the name of the parameter of calcFn used to pass in the gridded input dimensions if reqGrid
     :param reqDerivs:   A list of derivatives needed to DIRECTLY calculate the tdq
-                        (e.g. for tdq Kp, this would be ['d1P','dP','d3P'] - see fn evalBulkModulusWrtPressure)
+                        (e.g. for tdq Kp, this would be ['d1P','dP','d3P'] - see fn evalIsothermalBulkModulusWrtPressure)
                         See getDerivatives for a full list of derivatives that can be calculated
     :param parmderivs:  the name of the parameter of calcFn used to pass in the pre-calculated derivatives if reqDerivs
     :param reqTDQ:      A list of other thermodynamic quantities needed to DIRECTLY calculate the tdq
@@ -388,7 +406,7 @@ def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     :param reqSpline:   If True, calcFn needs the spline definition
     :param parmspline:  the name of the parameter of calcFn used to pass in the spline def if reqSpline
     :param reqx:        If True, calcFn needs the original dimension input (parm x in evalSolutionGibbs) to run
-                        note difference from reqX!!
+                        note difference from reqX!! this parm (reqx) means pass the input x into the fn
     :param parmx:       the name of the parameter of calcFn used to pass in the original input if reqx
     :return:            a namedtuple giving the spec for the tdq
     """
@@ -429,14 +447,16 @@ def getSupportedThermodynamicQuantities():
         _getTDQSpec('H', evalEnthalpy, reqGrid=True, reqTDQ=['U', 'S']),
         _getTDQSpec('S', evalEntropy, reqDerivs=['d1T']),
         _getTDQSpec('Kt', evalIsothermalBulkModulus, reqDerivs=['d1P', 'd2P']),
-        _getTDQSpec('Kp', evalBulkModulusWrtPressure, reqDerivs=['d1P', 'd2P', 'd3P']),
+        _getTDQSpec('Kp', evalIsothermalBulkModulusWrtPressure, reqDerivs=['d1P', 'd2P', 'd3P']),
         _getTDQSpec('Ks', evalIsotropicBulkModulus, reqTDQ=['rho', 'vel']),
-        _getTDQSpec('f', evalf, reqX=True, reqM=True, reqx=True),
+        _getTDQSpec('f', evalVolWaterInVolSolutionConversion, reqX=True, reqM=True, reqx=True),
         _getTDQSpec('mus', evalSoluteChemicalPotential, reqM=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
         _getTDQSpec('muw', evalWaterChemicalPotential, reqX=True, reqGrid=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
-        _getTDQSpec('Vm', evalVm, reqM=True, reqDerivs=['d1P', 'dPX'], reqTDQ=['f']),
-        _getTDQSpec('Cpm', evalCpm, reqM=True, reqGrid=True, reqDerivs=['d2T1X'], reqTDQ=['Cp', 'f']),
-        _getTDQSpec('V', evalVolume, reqTDQ=['rho'])
+        _getTDQSpec('Vm', evalPartialMolarVolume, reqM=True, reqDerivs=['d1P', 'dPX'], reqTDQ=['f']),
+        _getTDQSpec('Cpm', evalPartialMolarHeatCapacity, reqM=True, reqGrid=True, reqDerivs=['d2T1X'], reqTDQ=['Cp', 'f']),
+        _getTDQSpec('V', evalVolume, reqTDQ=['rho']),
+        _getTDQSpec('Cpa', evalApparentSpecificHeat, reqX=True, reqx=True, reqGrid=True, reqTDQ=['Cp', 'f']),
+        _getTDQSpec('Va', evalApparentVolume, reqX=True, reqx=True, reqGrid=True, reqTDQ=['V', 'f'])
             ])
     # check that all reqTDQs are represented in the list
     outnames = frozenset([t.name for t in out])

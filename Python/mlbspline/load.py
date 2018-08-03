@@ -43,6 +43,7 @@ def getSplineDict(matSp):
     # e.g. number is [50,20] but coefs has shape (1,50,20)
     if out['dim'].size == 1 and out['dim'][0] == 1 and \
             np.array_equal(np.concatenate((out['dim'], out['number'])), np.array(out['coefs'].shape)):
+        # don't squeeze in case other dimensions also singleton
         out['coefs'] = out['coefs'][0,] # just select the single value from the dimension with size 1
     return out
 
