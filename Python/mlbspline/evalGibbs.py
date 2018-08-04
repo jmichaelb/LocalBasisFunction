@@ -1,8 +1,9 @@
 from collections import namedtuple
 from pprint import pformat
-from inspect import signature, currentframe, getargvalues
+from inspect import currentframe, getargvalues
 from time import time
 from datetime import datetime
+import warnings
 
 import numpy as np
 from numpy.lib.scimath import sqrt
@@ -11,7 +12,7 @@ from mlbspline.eval import evalMultivarSpline
 
 
 # TODO: probably should move this to a different namespace
-def evalSolutionGibbs(gibbsSp, PTX, M=0, verbose=False, *tdvSpec):
+def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, *tdvSpec):
     # TODO: check and document units for all statevars
     # TODO: add logging? possibly in stead of verbose
     """ Calculates thermodynamic quantities for solutions based on a spline giving Gibbs energy
@@ -50,6 +51,9 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, verbose=False, *tdvSpec):
                     and must be in the same order and units described in the notes for the gibbsSp parameter
                     Additionally, each dimension must be sorted from low to high values.
     :param M:       float with molecular weight of solute (kg/mol)
+    :param failOnExtrapolate:   True if you want an error to appear if PTX includes values that fall outside the knot
+                    sequence of gibbsSp.  If False, throws a warning rather than an error, and
+                    proceeds with the calculation.
     :param verbose: boolean indicating whether to print status updates, warnings, etc.
     :param tdvSpec: iterable indicating the thermodynamic quantities to be calculated
                     elements can be either strings showing the names or the TDV objects from getSupportedMeasures
@@ -83,7 +87,7 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, verbose=False, *tdvSpec):
     """
     dimCt = gibbsSp['number'].size
     tdvSpec = expandTDVSpec(tdvSpec, dimCt)
-    _checkNecessaryDataForTDV(M, dimCt, tdvSpec)
+    _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate)
 
     tdvout = createThermodynamicStatesObj(dimCt, tdvSpec, PTX)
     derivs = getDerivatives(gibbsSp, PTX, dimCt, tdvSpec, verbose)
@@ -113,18 +117,16 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, verbose=False, *tdvSpec):
     return tdvout
 
 
-def _checkNecessaryDataForTDV(M, dimCt, tdvSpec):
-    # TODO: issue warning if dim values fall (too far?) outside the knot sequence of gibbsSp?
+def _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate):
     """ Checks error conditions before performing any calculations, throwing an error if anything doesn't match up
-      - Ensures only supported statevars are requested
+      - Ensures that a PTX spline includes 0 concentrations
       - Ensures necessary data is available for requested statevars
-
-    :param M:       molecular weight of solvent
-    :param dimCt:   if spline being evaluated is a PT spline, this will be 2.  if a PTX spline, this will be 3
-                    no other values are valid
-    :param tdvSpec: iterable of thermodynamic variables to be calculated (TDV objects from getSupportedMeasures)
-
+      -
     """
+    knotranges = [(k[0], k[-1]) for k in gibbsSp['knots']]
+    # if a PTX spline, make sure the X dimension starts with 0
+    if dimCt == 0 and knotranges[iX][0] != 0:
+        raise ValueError('The PTX spline does not include 0 concentrations.')
     # make sure that spline has 3 dims if quantities using concentration are requested
     reqX = [t for t in tdvSpec if t.reqX]
     if dimCt == 2 and reqX:
@@ -137,6 +139,18 @@ def _checkNecessaryDataForTDV(M, dimCt, tdvSpec):
         raise ValueError('You cannot calculate ' + pformat([t.name for t in reqM]) + ' without providing molecular '
                          'weight.  Remove those statevars and all their dependencies, or provide a non-zero value '
                          'for the M parameter.')
+    # make sure that all the PTX values fall inside the knot ranges of the spline
+    ptxranges = [(d[0],d[-1]) for d in PTX]         # since values are sorted, these are the min/max vals for each dim
+    hasValsOutsideKnotRange = lambda kr, dr: dr[0] < kr[0] or dr[1] > kr[1]
+    extrapolationDims =  [i for i in range(0,dimCt) if hasValsOutsideKnotRange(knotranges[i],ptxranges[i])]
+    if extrapolationDims:
+        msg = ' '.join(['Dimensions',pformat(['P' if d==iP else ('T' if d==iT else 'X') for d in extrapolationDims]),
+                'contain values that fall outside the knot sequence for the given spline, ',
+                'which will result in extrapolation, which may not produce meaningful values.'])
+        if failOnExtrapolate:
+            raise ValueError(msg)
+        else:
+            warnings.warn(msg)
     return
 
 
