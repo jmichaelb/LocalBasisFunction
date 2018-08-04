@@ -9,12 +9,12 @@ from numpy.lib.scimath import sqrt
 
 from mlbspline.eval import evalMultivarSpline
 
+
 # TODO: probably should move this to a different namespace
-def evalSolutionGibbs(gibbsSp, x, M=0, verbose=False, *tdqSpec):
+def evalSolutionGibbs(gibbsSp, PTX, M=0, verbose=False, *tdqSpec):
     # TODO: add Va, Cpa
     # TODO: check and document units for all measures
     # TODO: add logging? possibly in stead of verbose
-    # TODO: make fn flexible enough to handle gibbsSp in different units (low priority)
     """ Calculates thermodynamic quantities for solutions based on a spline giving Gibbs energy
     This only supports single-solute solutions.
 
@@ -23,10 +23,10 @@ def evalSolutionGibbs(gibbsSp, x, M=0, verbose=False, *tdqSpec):
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     For developers: to add a new thermodynamic quantity (TDQ), all of the following should be done:
-    NOTE: new quantities cannot be named P, T, or X, as those symbols are reserved for the input (x)
+    NOTE: new quantities cannot be named P, T, or X, as those symbols are reserved for the input
     You will need to read and understand the comments for getSupportedMeasures and _getTDQSpec
     - create a short function to calculate the measure based on other values
-        such as gibbsSp, x, xm, derivs, tdqout, etc.
+        such as gibbsSp, PTX, xm, derivs, tdqout, etc.
         the procedure should be named with 'eval' + the FULL name for the measure - NOT the symbol / tdq flag
         record the symbol / tdq flag as the return value in comments for the function
         add only parameters required to calculate the measure
@@ -42,14 +42,16 @@ def evalSolutionGibbs(gibbsSp, x, M=0, verbose=False, *tdqSpec):
         or create a new section if one is warranted
 
     :param gibbsSp: A B-spline  (in format given by loadSpline.loadMatSpline) for giving Gibbs energy (J/mg)
-                    with dimensions pressure (MPa), temperature (K), and (optionally) molality, IN THAT ORDER.
+                    with dimensions pressure (MPa), temperature (K), and (optionally) molality (mol/kg), IN THAT ORDER.
                     If molality is not provided, this function assumes that it is calculating
                     thermodynamic properties for pure water.
-    :param x:       a Numpy ndarray of ndarrays with the points at which gibbsSp should be evaluated
-                    the number and index of dimensions must be same as in the spline (x.size == gibbsSp['number'].size)
-                    and each dimension must be sorted (low to high)
+    :param PTX:     a Numpy ndarray of ndarrays with the points at which gibbsSp should be evaluated
+                    the number of dimensions must be same as in the spline (PTX.size == gibbsSp['number'].size)
+                    each of the inner ndarrays represents one of pressure (P), temperature (T), or molality (X)
+                    and must be in the same order and units described in the notes for the gibbsSp parameter
+                    Additionally, each dimension must be sorted from low to high values.
     :param M:       float with molecular weight of solute (kg/mol)
-    :param verbose: boolean indicating whether to print status updates
+    :param verbose: boolean indicating whether to print status updates, warnings, etc.
     :param tdqSpec: iterable indicating the thermodynamic quantities to be calculated
                     elements can be either strings showing the names or the TDQ objects from getSupportedMeasures
                     If not provided, this function will calculate the quantities in defTdq2 for a PT spline,
@@ -76,25 +78,17 @@ def evalSolutionGibbs(gibbsSp, x, M=0, verbose=False, *tdqSpec):
                         Cpm         returns partial molar heat capacity
                         Cpa         returns apparent heat capacity
                         Va          returns apparent volume
-    :return:        a named tuple with the requested thermodynamic values
+    :return:        a named tuple with the requested thermodynamic quantities
                     as named properties matching the measures requested in the *tdq parameter of this function
-                    the x value is also included as tuple for reference
-                    note that 0 values for concentration (x[iX]) will be replaced by eps
-                    see function adjustConcentrations for details
+                    the output will also include P, T, and X (if provided) properties
     """
     dimCt = gibbsSp['number'].size
     tdqSpec = expandTdqSpec(tdqSpec, dimCt)
     _checkNecessaryDataForTDQ(M, dimCt, tdqSpec)
 
-    # # prep for calculating apparent values
-    # if dimCt == 3:
-    #     # TODO: Do we really need to remove the 0ish concentrations if any were added?
-    #     origXCt = len(x[iX])
-    #     x[iX] = adjustConcentrations(x[iX])
-
-    tdqout = createThermodynamicQuantitiesObj(dimCt, tdqSpec, x)
-    derivs = getDerivatives(gibbsSp, x, dimCt, tdqSpec, verbose)
-    xm = _getxm(tdqSpec, x)
+    tdqout = createThermodynamicQuantitiesObj(dimCt, tdqSpec, PTX)
+    derivs = getDerivatives(gibbsSp, PTX, dimCt, tdqSpec, verbose)
+    xm = _getxm(tdqSpec, PTX)
 
     # calculate thermodynamic quantities and store in appropriate fields in tdqout
     comptdq = set()     # list of completed tdqs
@@ -110,7 +104,7 @@ def evalSolutionGibbs(gibbsSp, x, M=0, verbose=False, *tdqSpec):
             if t.reqM:      args[t.parmM] = M
             if t.reqTDQ:    args[t.parmtdq] = tdqout
             if t.reqSpline: args[t.parmspline] = gibbsSp
-            if t.reqx:      args[t.parmx] = x
+            if t.reqPTX:    args[t.parmptx] = PTX
             start = time()
             setattr(tdqout, t.name, t.calcFn(**args))
             end = time()
@@ -173,28 +167,16 @@ def expandTdqSpec(tdqSpec, dimCt):
     return tdqSpec
 
 
-def createThermodynamicQuantitiesObj(dimCt, tdqSpec, x):
+def createThermodynamicQuantitiesObj(dimCt, tdqSpec, PTX):
     flds = {t.name for t in tdqSpec} | set(['P', 'T'] + ([] if dimCt == 2 else ['X']))
-    # TODO: include derivs in output?  fnGval returns d1P/d2P/d3P, but no others
-    TDQ = type('ThermodynamicQuantities', (object,), {i:None for i in flds})
+    TDQ = type('ThermodynamicQuantities', (object,), {i: None for i in flds})
     out = TDQ()
     # include input in the output so you always know the conditions for the thermodynamic quantities
     for i in range(0,dimCt):
-        if i == iP:     out.P = x[i]
-        if i == iT:     out.T = x[i]
-        if i == iX:     out.X = x[i]
+        if i == iP:     out.P = PTX[i]
+        if i == iT:     out.T = PTX[i]
+        if i == iX:     out.X = PTX[i]
     return out
-
-
-# def adjustConcentrations(X):
-#     # TODO: properly document why eps is added in and determine whether to return amended X or original X (just to avoid divide by 0 error in Cpa and Va calcs?)
-#     eps = np.finfo(type(X[0])).eps  # get the lowest positive value that can be distinguished from 0
-#     # prepend the list of concentrations with a zero if there isn't already one there
-#     out = X
-#     # TODO: fix this when some calculation is added that uses it (Cpa or Va, possibly other quantities)
-#     # out = X if X[0] == 0 else np.concatenate((np.array([0]), X))
-#     out[out == 0] = eps  # add eps to zero concentrations to avoid divide by zero errors
-#     return out
 
 
 def _createGibbsDerivativesClass(tdqSpec):
@@ -210,7 +192,7 @@ def _buildDerivDirective(derivSpec, dimCt):
     return out
 
 
-def getDerivatives(gibbsSp, x, dimCt, tdqSpec, verbose=False):
+def getDerivatives(gibbsSp, PTX, dimCt, tdqSpec, verbose=False):
     GibbsDerivs = _createGibbsDerivativesClass(tdqSpec)
     out = GibbsDerivs()
     reqderivs = {d for t in tdqSpec for d in t.reqDerivs}   # get set of derivative names that are needed
@@ -218,32 +200,31 @@ def getDerivatives(gibbsSp, x, dimCt, tdqSpec, verbose=False):
     for rd in reqderivs:
         derivDirective = _buildDerivDirective(getDerivSpec(rd), dimCt)
         start = time()
-        setattr(out, rd,  evalMultivarSpline(gibbsSp, x, derivDirective))
+        setattr(out, rd, evalMultivarSpline(gibbsSp, PTX, derivDirective))
         end = time()
         if verbose: _printTiming('deriv '+rd, start, end)
-
     return out
 
 
-def _getxm(tdqSpec, x):
+def _getxm(tdqSpec, PTX):
     if [t for t in tdqSpec if t.reqGrid]:
-        return np.meshgrid(*x.tolist(), indexing='ij')    # grid the dimensions of x
+        return np.meshgrid(*PTX.tolist(), indexing='ij')    # grid the dimensions of PTX
     else:
         return []
 
 
-def evalVolWaterInVolSolutionConversion(M, x):
+def evalVolWaterInVolSolutionConversion(M, PTX):
     """ Conversion factor for how much of the volume of 1 kg of solution is really just the water
     :return:    f
     """
-    return 1 + M * x[iX]
+    return 1 + M * PTX[iX]
 
 
-def evalGibbs(gibbsSp, x):
+def evalGibbs(gibbsSp, PTX):
     """
     :return: G
     """
-    return evalMultivarSpline(gibbsSp, x)
+    return evalMultivarSpline(gibbsSp, PTX)
 
 
 def evalSpecificHeat(xm, derivs):
@@ -362,11 +343,11 @@ def evalVolume(tdq):
 
 
 # TODO: implement once key questions are answered
-def evalApparentSpecificHeat(x, xm, tdq):
+def evalApparentSpecificHeat(PTX, xm, tdq):
     """
     :return:    Cpa
     """
-    # zeroXIdx = x[iX][x[iX]==0]      # returns empty array if nothing there
+    # zeroXIdx = PTX[iX][PTX[iX]==0]      # returns empty array if nothing there
     # zeroXCp = np.squeeze(tdq.Cp[:,:,zeroXIdx])
     # return tdq.Cp * tdq.f -
     #Cpa=(Cp.*f -repmat(squeeze(Cp(:,:,1)),1,1,length(m)))./mm;
@@ -374,7 +355,7 @@ def evalApparentSpecificHeat(x, xm, tdq):
 
 
 # TODO: implement once key questions are answered
-def evalApparentVolume(x, xm, tdq):
+def evalApparentVolume(PTX, xm, tdq):
     """ slope of a chord between pure water and a concentration on a V v. X graph
     :return:    Va
     """
@@ -382,15 +363,13 @@ def evalApparentVolume(x, xm, tdq):
     return None
 
 
-def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='xm',
-                reqDerivs=[], parmderivs='derivs', reqTDQ=[], parmtdq='tdq', reqSpline=False, parmspline='gibbsSp',
-                reqx=False, parmx='x'):
+def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='xm', reqDerivs=[],
+                parmderivs='derivs', reqTDQ=[], parmtdq='tdq', reqSpline=False, parmspline='gibbsSp', reqPTX=False,
+                parmptx='PTX'):
     """ Builds a TDQSpec namedtuple indicating what is required to calculate this particular thermodynamic quantity
     :param name:        the name / symbol of the tdq (e.g., G, rho, alpha, muw)
     :param calcFn:      the name of the function used to calculate the tdq
     :param reqX:        True if DIRECTLY calculating the tdq requires concentration.  False otherwise
-                        note difference from reqx!! this parm (reqX) means the procedure uses concentration
-                        or a concentration derivative of Gibbs energy
     :param reqM:        True if DIRECTLY calculating the tdq requires molecular weight.  False otherwise
     :param parmM:       the name of the parameter of calcFn used to pass in M if reqM
     :param reqGrid:     True if DIRECTLY calculating the tdq requires you to grid the PT[X] values.  False otherwise
@@ -405,9 +384,8 @@ def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     :param parmtdq:     the name of the parameter of calcFn used to pass in the tdqout if reqTDQ
     :param reqSpline:   If True, calcFn needs the spline definition
     :param parmspline:  the name of the parameter of calcFn used to pass in the spline def if reqSpline
-    :param reqx:        If True, calcFn needs the original dimension input (parm x in evalSolutionGibbs) to run
-                        note difference from reqX!! this parm (reqx) means pass the input x into the fn
-    :param parmx:       the name of the parameter of calcFn used to pass in the original input if reqx
+    :param reqPTX:      If True, calcFn needs the original dimension input (parm PTX in evalSolutionGibbs) to run
+    :param parmptx:     the name of the parameter of calcFn used to pass in the original input if reqPTX
     :return:            a namedtuple giving the spec for the tdq
     """
     reqTDQ = set(reqTDQ); reqDerivs = set(reqDerivs)    # make these sets to enforce uniqueness and immutability
@@ -423,7 +401,7 @@ def _getTDQSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     if not reqDerivs:   flds.remove('parmderivs')
     if not reqTDQ:      flds.remove('parmtdq')
     if not reqSpline:   flds.remove('parmspline')
-    if not reqx:        flds.remove('parmx')
+    if not reqPTX:      flds.remove('parmptx')
     vals = [arginfo.locals[v] for v in arginfo.locals if v in flds]
 
     tdqspec = namedtuple('TDQSpec', flds, defaults=vals)
@@ -438,7 +416,7 @@ def getSupportedThermodynamicQuantities():
     :return: immutable iterable with the the full set of specs for thermodynamic quantities supported by this module
     """
     out = tuple([
-        _getTDQSpec('G', evalGibbs, reqSpline=True, reqx=True),
+        _getTDQSpec('G', evalGibbs, reqSpline=True, reqPTX=True),
         _getTDQSpec('rho', evalDensity, reqDerivs=['d1P']),
         _getTDQSpec('vel', evalSoundSpeed, reqDerivs=['d1P', 'dPT', 'd2T', 'd2P']),
         _getTDQSpec('Cp', evalSpecificHeat, reqGrid=True, reqDerivs=['d2T']),
@@ -449,14 +427,15 @@ def getSupportedThermodynamicQuantities():
         _getTDQSpec('Kt', evalIsothermalBulkModulus, reqDerivs=['d1P', 'd2P']),
         _getTDQSpec('Kp', evalIsothermalBulkModulusWrtPressure, reqDerivs=['d1P', 'd2P', 'd3P']),
         _getTDQSpec('Ks', evalIsotropicBulkModulus, reqTDQ=['rho', 'vel']),
-        _getTDQSpec('f', evalVolWaterInVolSolutionConversion, reqX=True, reqM=True, reqx=True),
+        _getTDQSpec('f', evalVolWaterInVolSolutionConversion, reqX=True, reqM=True, reqPTX=True),
         _getTDQSpec('mus', evalSoluteChemicalPotential, reqM=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
         _getTDQSpec('muw', evalWaterChemicalPotential, reqX=True, reqGrid=True, reqDerivs=['d1X'], reqTDQ=['f', 'G']),
         _getTDQSpec('Vm', evalPartialMolarVolume, reqM=True, reqDerivs=['d1P', 'dPX'], reqTDQ=['f']),
-        _getTDQSpec('Cpm', evalPartialMolarHeatCapacity, reqM=True, reqGrid=True, reqDerivs=['d2T1X'], reqTDQ=['Cp', 'f']),
+        _getTDQSpec('Cpm', evalPartialMolarHeatCapacity, reqM=True, reqGrid=True, reqDerivs=['d2T1X'],
+                    reqTDQ=['Cp', 'f']),
         _getTDQSpec('V', evalVolume, reqTDQ=['rho']),
-        _getTDQSpec('Cpa', evalApparentSpecificHeat, reqX=True, reqx=True, reqGrid=True, reqTDQ=['Cp', 'f']),
-        _getTDQSpec('Va', evalApparentVolume, reqX=True, reqx=True, reqGrid=True, reqTDQ=['V', 'f'])
+        _getTDQSpec('Cpa', evalApparentSpecificHeat, reqX=True, reqGrid=True, reqTDQ=['Cp', 'f'], reqPTX=True),
+        _getTDQSpec('Va', evalApparentVolume, reqX=True, reqGrid=True, reqTDQ=['V', 'f'], reqPTX=True)
             ])
     # check that all reqTDQs are represented in the list
     outnames = frozenset([t.name for t in out])
