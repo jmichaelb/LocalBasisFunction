@@ -325,7 +325,7 @@ def evalWaterChemicalPotential(gPTX, derivs, tdv):
     """
     :return:        muw
     """
-    return (tdv.G / nw) - (1 / nw * tdv.f * gPTX[iX] * derivs.d1X)
+    return (tdv.G / Mwater) - (1 / Mwater * tdv.f * gPTX[iX] * derivs.d1X)
 
 
 def evalEnthalpy(gPTX, tdv):
@@ -519,10 +519,9 @@ def _printTiming(calcdesc, start, end):
 #########################################
 ## Constants
 #########################################
-# TODO: Change to 18.01528? has a 10 oom effect on ML - Python calcs for muw (but relative still only ~1e-6)
-nw = 1000/18.0152      # moles/kg for pure water
-iP = 0; iT = 1; iX = 2  # dimension indices
-defDer = 0              # default derivative
+Mwater = 1000 / 18.01528    # moles/kg for pure water
+iP = 0; iT = 1; iX = 2      # dimension indices
+defDer = 0                  # default derivative
 
 derivSpec = namedtuple('DerivativeSpec', ['name', 'wrtP', 'wrtT', 'wrtX'], defaults=[None, defDer, defDer, defDer])
 derivatives = getSupportedDerivatives()
