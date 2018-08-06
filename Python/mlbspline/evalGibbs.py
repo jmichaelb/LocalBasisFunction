@@ -15,7 +15,7 @@ from mlbspline.eval import evalMultivarSpline
 def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, *tdvSpec):
     # TODO: check and document units for all statevars
     # TODO: add logging? possibly in stead of verbose
-    """ Calculates thermodynamic quantities for solutions based on a spline giving Gibbs energy
+    """ Calculates thermodynamic variables for solutions based on a spline giving Gibbs energy
     This only supports single-solute solutions.
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -23,7 +23,7 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     For developers: to add a new thermodynamic variable (TDV), all of the following should be done:
-    NOTE: new quantities cannot be named P, T, or X, as those symbols are reserved for the input
+    NOTE: new variables cannot be named P, T, or X, as those symbols are reserved for the input
     You will need to read and understand the comments for getSupportedMeasures and _getTDVSpec
     - create a short function to calculate the measure based on other values
         such as gibbsSp, PTX, gPTX, derivs, tdvout, etc.
@@ -32,7 +32,7 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
         add only parameters required to calculate the measure
         Be consistent with parameter names used in other functions or use the parm* parameters of _getTDVSpec
         If you end up with an as-yet unused parameter, add it to _getTDVSpec (defaulting to OFF)
-         AND to the evaluation section of this function
+        AND to the evaluation section of this function
     - add the measure spec to getSupportedThermodynamicVariables -
         when the comments say DIRECTLY, they mean only consider something a requirement if it is used in
         the function built in the previous step
@@ -44,45 +44,45 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
     :param gibbsSp: A B-spline  (in format given by loadSpline.loadMatSpline) for giving Gibbs energy (J/mg)
                     with dimensions pressure (MPa), temperature (K), and (optionally) molality (mol/kg), IN THAT ORDER.
                     If molality is not provided, this function assumes that it is calculating
-                    thermodynamic properties for pure water.
+                    thermodynamic properties for a pure substance.
     :param PTX:     a Numpy ndarray of ndarrays with the points at which gibbsSp should be evaluated
                     the number of dimensions must be same as in the spline (PTX.size == gibbsSp['number'].size)
                     each of the inner ndarrays represents one of pressure (P), temperature (T), or molality (X)
                     and must be in the same order and units described in the notes for the gibbsSp parameter
                     Additionally, each dimension must be sorted from low to high values.
-    :param M:       float with molecular weight of solute (kg/mol)
+    :param M: float with molecular weight of solute (kg/mol)
     :param failOnExtrapolate:   True if you want an error to appear if PTX includes values that fall outside the knot
                     sequence of gibbsSp.  If False, throws a warning rather than an error, and
                     proceeds with the calculation.
     :param verbose: boolean indicating whether to print status updates, warnings, etc.
-    :param tdvSpec: iterable indicating the thermodynamic quantities to be calculated
+    :param tdvSpec: iterable indicating the thermodynamic variables to be calculated
                     elements can be either strings showing the names or the TDV objects from getSupportedMeasures
-                    If not provided, this function will calculate the quantities in defTDV2 for a PT spline,
-                    and to the union of quantities in defTDV2 and defTDVSpec3 for a PTX spline.
+                    If not provided, this function will calculate the variables in defTDV2 for a PT spline,
+                    and to the union of variables in defTDV2 and defTDVSpec3 for a PTX spline.
                     Args can be any of the following strings, each representing a thermodynamic quantity
                     that can be calculated based on a Gibbs energy spline.
                     Any other args provided will result in an error.
-                        G           returns Gibbs energy in J/mg
+                        G           returns Gibbs energy in J/kg
                         rho         returns density in kg/m^3
                         vel         returns sound speed in m/s
                         Cp          returns isobaric specific heat in J/kg/K
                         alpha       returns thermal expansivity in 1/K
-                        U           returns internal energy
-                        H           returns enthalpy
-                        S           returns entropy
-                        Kt          returns isothermal bulk modulus
-                        Kp          returns pressure derivatives of isothermal bulk modulus
-                        Ks          returns isotropic bulk modulus
-                  td      V           returns unit volume in m^3/kg
+                        U           returns internal energy in J/kg
+                        H           returns enthalpy in J/kg
+                        S           returns entropy in J/kg/K
+                        Kt          returns isothermal bulk modulus in MPa
+                        Kp          returns pressure derivatives of isothermal bulk modulus (dimensionless)
+                        Ks          returns isotropic bulk modulus in MPa
+                        V           returns unit volume in m^3/kg
                         -------------------------------------------- below this line, require PTX spline and non-zero M
-                        mus         returns solute chemical potential
-                        muw         returns water chemical potential
-                        Vm          returns partial molar volume
-                        Cpm         returns partial molar heat capacity
-                        Cpa         returns apparent heat capacity
-                        Va          returns apparent volume
-    :return:        a named tuple with the requested thermodynamic quantities
-                    as named properties matching the statevars requested in the *tdvSpec parameter of this function
+                        mus         returns solute chemical potential in J/mol
+                        muw         returns water chemical potential in J/mol
+                        Vm          returns partial molar volume in m^3/mol
+                        Cpm         returns partial molar heat capacity in J/kg/K/mol
+                        Cpa         returns apparent heat capacity J/Kg/K/mol
+                        Va          returns apparent volume m^3/mol
+    :return:        a named tuple with the requested thermodynamic variables as named properties
+                    matching the statevars requested in the *tdvSpec parameter of this function
                     the output will also include P, T, and X (if provided) properties
     """
     dimCt = gibbsSp['number'].size
@@ -93,7 +93,7 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
     derivs = getDerivatives(gibbsSp, PTX, dimCt, tdvSpec, verbose)
     gPTX = _getGriddedPTX(tdvSpec, PTX)
 
-    # calculate thermodynamic quantities and store in appropriate fields in tdvout
+    # calculate thermodynamic variables and store in appropriate fields in tdvout
     completedTDVs = set()     # list of completed tdvs
     while len(completedTDVs) < len(tdvSpec):
         # get tdvs that either have empty reqTDV or all of those tdvs have already been calculated
@@ -127,18 +127,18 @@ def _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate):
     # if a PTX spline, make sure the X dimension starts with 0
     if dimCt == 0 and knotranges[iX][0] != 0:
         raise ValueError('The PTX spline does not include 0 concentrations.')
-    # make sure that spline has 3 dims if quantities using concentration are requested
+    # make sure that spline has 3 dims if tdvs using concentration are requested
     reqX = [t for t in tdvSpec if t.reqX]
     if dimCt == 2 and reqX:
-        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqX]) + ' with a spline that does not '
-                         'include concentration. Remove those statevars and all their dependencies, or supply a spline '
-                         'that includes concentration.')
+        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqX]) + ' with a spline that does not ' +
+                         'include concentration. Remove those statevars and all their dependencies, or supply a ' +
+                         'spline that includes concentration.')
     # make sure that M is provided if any tdvs that require M are requested
     reqM = [t for t in tdvSpec if t.reqM]
     if M == 0 and reqM:
-        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqM]) + ' without providing molecular '
-                         'weight.  Remove those statevars and all their dependencies, or provide a non-zero value '
-                         'for the M parameter.')
+        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqM]) + ' without providing solute ' +
+                         'molecular weight.  Remove those statevars and all their dependencies, or provide a ' +
+                         'non-zero value for the M parameter.')
     # make sure that all the PTX values fall inside the knot ranges of the spline
     ptxranges = [(d[0],d[-1]) for d in PTX]         # since values are sorted, these are the min/max vals for each dim
     hasValsOutsideKnotRange = lambda kr, dr: dr[0] < kr[0] or dr[1] > kr[1]
@@ -156,10 +156,10 @@ def _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate):
 
 # TODO: add robust set of tests for this
 def expandTDVSpec(tdvSpec, dimCt):
-    """ add dependencies for requested thermodynamic quantities or sets default tdvSpec if none provided
+    """ add dependencies for requested thermodynamic variables or sets default tdvSpec if none provided
     derivatives are handled separately - see getDerivatives
 
-    :param tdvSpec: an iterable with the names of thermodynamic quantities to be evaluated
+    :param tdvSpec: an iterable with the names of thermodynamic variables to be evaluated
     :param dimCt:   the number of dimensions - used if setting the default tdvSpec
     :return:        an immutable iterable of TDV namedtuples that includes those specified by tdvSpec
                     and all their dependencies
@@ -174,7 +174,7 @@ def expandTDVSpec(tdvSpec, dimCt):
         if dimCt == 3:
             tdvSpec.extend(defTDVSpec3)
     else:
-        # add thermodynamic quantities on which requested ones depend
+        # add thermodynamic variables on which requested ones depend
         tdvSpec = _addTDVDependencies(tdvSpec)
 
     return tdvSpec
@@ -184,7 +184,7 @@ def createThermodynamicStatesObj(dimCt, tdvSpec, PTX):
     flds = {t.name for t in tdvSpec} | set(['P', 'T'] + ([] if dimCt == 2 else ['X']))
     TDS = type('ThermodynamicStates', (object,), {i: None for i in flds})
     out = TDS()
-    # include input in the output so you always know the conditions for the thermodynamic quantities
+    # include input in the output so you always know the conditions for the thermodynamic variables
     for i in range(0,dimCt):
         if i == iP:     out.P = PTX[i]
         if i == iT:     out.T = PTX[i]
@@ -236,7 +236,7 @@ def _getGriddedPTX(tdvSpec, PTX):
 
 
 def evalVolWaterInVolSolutionConversion(M, PTX):
-    """ Conversion factor for how much of the volume of 1 kg of solution is really just the water
+    """ Dimensionless conversion factor for how much of the volume of 1 kg of solution is really just the water
     :return:    f
     """
     return 1 + M * PTX[iX]
@@ -301,7 +301,6 @@ def evalIsotropicBulkModulus(tdv):
 
 def evalThermalExpansivity(derivs, tdv):
     """
-    :param tdv:     the ThermodynamicQuantities namedtuple that stores already-calculated values
     :return:        alpha
     """
     return 1e-6 * derivs.dPT * tdv.rho  #  1e6 for MPa to Pa
@@ -309,7 +308,6 @@ def evalThermalExpansivity(derivs, tdv):
 
 def evalInternalEnergy(gPTX, tdv):
     """
-    :param tdv:     the ThermodynamicQuantities namedtuple that stores already-calculated values
     :param gPTX:    gridded dimensions over which spline is being evaluated
     :return:        U
     """
@@ -318,8 +316,6 @@ def evalInternalEnergy(gPTX, tdv):
 
 def evalSoluteChemicalPotential(M, derivs, tdv):
     """
-    :param M:       the molecular weight of the solvent
-    :param tdv:     the ThermodynamicQuantities namedtuple that stores already-calculated values
     :return:        mus
     """
     return M * tdv.G + tdv.f * derivs.d1X
@@ -327,8 +323,6 @@ def evalSoluteChemicalPotential(M, derivs, tdv):
 
 def evalWaterChemicalPotential(gPTX, derivs, tdv):
     """
-    :param gPTX:    gridded dimensions over which spline is being evaluated
-    :param tdv:     the ThermodynamicQuantities namedtuple that stores already-calculated values
     :return:        muw
     """
     return (tdv.G / nw) - (1 / nw * tdv.f * gPTX[iX] * derivs.d1X)
@@ -336,8 +330,6 @@ def evalWaterChemicalPotential(gPTX, derivs, tdv):
 
 def evalEnthalpy(gPTX, tdv):
     """
-    :param gPTX:    gridded dimensions over which spline is being evaluated
-    :param tdv:     the ThermodynamicQuantities namedtuple that stores already-calculated values
     :return:        H
     """
     return tdv.U - gPTX[iT] * tdv.S
@@ -385,14 +377,14 @@ def evalApparentVolume(PTX, gPTX, tdv):
     return None
 
 
-def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='gPTX', reqDerivs=[],
-                parmderivs='derivs', reqTDV=[], parmtdv='tdv', reqSpline=False, parmspline='gibbsSp', reqPTX=False,
-                parmptx='PTX'):
+def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='gPTX',
+                reqDerivs=[], parmderivs='derivs', reqTDV=[], parmtdv='tdv', reqSpline=False, parmspline='gibbsSp',
+                reqPTX=False, parmptx='PTX'):
     """ Builds a TDVSpec namedtuple indicating what is required to calculate this particular thermodynamic variable
     :param name:        the name / symbol of the tdv (e.g., G, rho, alpha, muw)
     :param calcFn:      the name of the function used to calculate the tdv
     :param reqX:        True if DIRECTLY calculating the tdv requires concentration.  False otherwise
-    :param reqM:        True if DIRECTLY calculating the tdv requires molecular weight.  False otherwise
+    :param reqM:        True if DIRECTLY calculating the tdv requires solute molecular weight.  False otherwise
     :param parmM:       the name of the parameter of calcFn used to pass in M if reqM
     :param reqGrid:     True if DIRECTLY calculating the tdv requires you to grid the PT[X] values.  False otherwise
     :param parmgrid:    the name of the parameter of calcFn used to pass in the gridded input dimensions if reqGrid
