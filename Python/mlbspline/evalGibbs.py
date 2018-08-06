@@ -87,7 +87,12 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
                     the output will also include P, T, and X (if provided) properties
     """
     dimCt = gibbsSp['number'].size
+    origSpec = tdvSpec
     tdvSpec = expandTDVSpec(tdvSpec, dimCt)
+    addedTDVs = [s.name for s in tdvSpec if s.name not in origSpec]
+    if origSpec and addedTDVs:  # the original spec was not empty and more tdvs were added
+        print('NOTE: The requested thermodynamic variables depend on the following variables, which will be '+
+              'included as properties of the output object: '+pformat(addedTDVs))
     _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate)
 
     tdvout = createThermodynamicStatesObj(dimCt, tdvSpec, PTX)
