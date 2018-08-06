@@ -1,12 +1,13 @@
 from collections import namedtuple
-from pprint import pformat
-from inspect import currentframe, getargvalues
-from time import time
 from datetime import datetime
-import warnings
+from inspect import currentframe, getargvalues
+from pprint import pformat
+from time import time
+from warnings import warn
 
 import numpy as np
 from numpy.lib.scimath import sqrt
+from psutil import virtual_memory
 
 from mlbspline.eval import evalMultivarSpline
 
@@ -150,7 +151,11 @@ def _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate):
         if failOnExtrapolate:
             raise ValueError(msg)
         else:
-            warnings.warn(msg)
+            warn(msg)
+    # warn the user if the calculation results will take more than some factor times total virtual memory
+    outputSize = (len(tdvSpec) + len(PTX)) * np.prod([len(d) for d in PTX]) * floatSizeBytes
+    if outputSize > virtual_memory().total * vmWarningFactor:
+        warn('The projected output is more than {0} times the total virtual memory for this machine.'.format(vmWarningFactor))
     return
 
 
@@ -522,6 +527,8 @@ def _printTiming(calcdesc, start, end):
 Mwater = 1000 / 18.01528    # moles/kg for pure water
 iP = 0; iT = 1; iX = 2      # dimension indices
 defDer = 0                  # default derivative
+vmWarningFactor = 2         # warn the user when size of output would exceed vmWarningFactor times total virtual memory
+floatSizeBytes = int(np.finfo(float).bits / 8)
 
 derivSpec = namedtuple('DerivativeSpec', ['name', 'wrtP', 'wrtT', 'wrtX'], defaults=[None, defDer, defDer, defDer])
 derivatives = getSupportedDerivatives()

@@ -5,6 +5,7 @@ Packages to install
 - `pip3 install scipy` - automatically installs numpy
 - `pip3 install jupyter`  See also https://jupyter.readthedocs.io/en/latest/install.html
 - `pip3 install matplotlib`
+- `pip3 install psutil`
 
 You may need to repeat these steps whenever upgrading Python.
 
