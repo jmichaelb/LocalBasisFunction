@@ -24,7 +24,7 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     For developers: to add a new thermodynamic variable (TDV), all of the following should be done:
-    NOTE: new variables cannot be named P, T, or X, as those symbols are reserved for the input
+    NOTE: new variables cannot be named PTX, as that symbols are reserved for the input
     You will need to read and understand the comments for getSupportedMeasures and _getTDVSpec
     - create a short function to calculate the measure based on other values
         such as gibbsSp, PTX, gPTX, derivs, tdvout, etc.
@@ -96,8 +96,8 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
     _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate)
 
     tdvout = createThermodynamicStatesObj(dimCt, tdvSpec, PTX)
-    derivs = getDerivatives(gibbsSp, PTX, dimCt, tdvSpec, verbose)
-    gPTX = _getGriddedPTX(tdvSpec, PTX)
+    derivs = getDerivatives(gibbsSp, tdvout.PTX, dimCt, tdvSpec, verbose)
+    gPTX = _getGriddedPTX(tdvSpec, tdvout.PTX, verbose)
 
     # calculate thermodynamic variables and store in appropriate fields in tdvout
     completedTDVs = set()     # list of completed tdvs
@@ -113,12 +113,14 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
             if t.reqM:      args[t.parmM] = M
             if t.reqTDV:    args[t.parmtdv] = tdvout
             if t.reqSpline: args[t.parmspline] = gibbsSp
-            if t.reqPTX:    args[t.parmptx] = PTX
+            if t.reqPTX:    args[t.parmptx] = tdvout.PTX    # use the PTX from tdvout, which may have 0 X added
             start = time()
             setattr(tdvout, t.name, t.calcFn(**args))
             end = time()
             if verbose: _printTiming('tdv '+t.name, start, end)
             completedTDVs.add(t.name)
+
+    _remove0X(tdvout, PTX)
 
     return tdvout
 
@@ -127,7 +129,9 @@ def _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate):
     """ Checks error conditions before performing any calculations, throwing an error if anything doesn't match up
       - Ensures that a PTX spline includes 0 concentrations
       - Ensures necessary data is available for requested statevars
-      -
+      - Throws a warning (or error if failOnExtrapolate=True) if spline is being evaluated on values
+        outside the range of its knots
+      - Warns the user if the requested output would exceed vmWarningFactor times the amount of virtual memory
     """
     knotranges = [(k[0], k[-1]) for k in gibbsSp['knots']]
     # if a PTX spline, make sure the X dimension starts with 0
@@ -191,23 +195,46 @@ def expandTDVSpec(tdvSpec, dimCt):
 
 
 def createThermodynamicStatesObj(dimCt, tdvSpec, PTX):
-    flds = {t.name for t in tdvSpec} | set(['P', 'T'] + ([] if dimCt == 2 else ['X']))
-    TDS = type('ThermodynamicStates', (object,), {i: None for i in flds})
+    flds = {t.name for t in tdvSpec} | {'PTX'}
+    TDS = type('ThermodynamicStates', (object,), {f: (PTX if f == 'PTX' else None) for f in flds})
     out = TDS()
-    # include input in the output so you always know the conditions for the thermodynamic variables
-    for i in range(0,dimCt):
-        if i == iP:     out.P = PTX[i]
-        if i == iT:     out.T = PTX[i]
-        if i == iX:     out.X = PTX[i]
+    # prepend a 0 concentration if one is needed by any of the quantities being calculated
+    if _needs0X(dimCt, PTX, tdvSpec):
+        out.PTX[iX] = np.insert(PTX[iX], 0, 0)
     return out
+
+
+def _needs0X(dimCt, PTX, tdvSpec):
+    """ If necessary, add a 0 value to the concentration dimension
+
+    :return:    True if 0 needs to be added
+    """
+    return dimCt == 3 and PTX[iX][0] != 0 and any([t for t in tdvSpec if t.req0X])
+
+
+def _remove0X(tdvout, origPTX):
+    """ If a 0 concentration was added, take it back out.
+    NOTE: This method changes the value of tdvout without returning it.
+
+    :param tdvout:  The object with calculated thermodynamic properties
+    :param origPTX: The original input
+    """
+    if tdvout.PTX.size == 3 and tdvout.PTX[iX].size != origPTX[iX].size:
+        tdvout.PTX[iX] = np.delete(tdvout.PTX[iX], 0, 0)
+        # go through all calculated values and remove the first item from the X dimension
+        for p,v in vars(tdvout).iteritems():
+            setattr(tdvout, p, v[:,:,1:])
+
 
 
 def _createGibbsDerivativesClass(tdvSpec):
     flds = {d for t in tdvSpec if t.reqDerivs for d in t.reqDerivs}
-    return type('GibbsDerivatives', (object,), {d:None for t in tdvSpec if t.reqDerivs for d in t.reqDerivs})
+    return type('GibbsDerivatives', (object,), {d: None for t in tdvSpec if t.reqDerivs for d in t.reqDerivs})
 
 
 def _buildDerivDirective(derivSpec, dimCt):
+    """ Gets a list of the derivatives for relevant dimensions
+    """
     out = [defDer] * dimCt
     if derivSpec.wrtP: out[iP] = derivSpec.wrtP
     if derivSpec.wrtT: out[iT] = derivSpec.wrtT
@@ -238,11 +265,15 @@ def getDerivatives(gibbsSp, PTX, dimCt, tdvSpec, verbose=False):
     return out
 
 
-def _getGriddedPTX(tdvSpec, PTX):
+def _getGriddedPTX(tdvSpec, PTX, verbose=False):
     if [t for t in tdvSpec if t.reqGrid]:
-        return np.meshgrid(*PTX.tolist(), indexing='ij')    # grid the dimensions of PTX
+        start = time()
+        out = np.meshgrid(*PTX.tolist(), indexing='ij')    # grid the dimensions of PTX
+        end = time()
+        if verbose: _printTiming('grid', start, end)
     else:
-        return []
+        out = []
+    return out
 
 
 def evalVolWaterInVolSolutionConversion(M, PTX):
@@ -366,30 +397,32 @@ def evalVolume(tdv):
     return np.power(tdv.rho, -1)
 
 
-# TODO: implement once key questions are answered
-def evalApparentSpecificHeat(PTX, gPTX, tdv):
+def evalApparentSpecificHeat(gPTX, tdv):
     """
     :return:    Cpa
     """
-    # zeroXIdx = PTX[iX][PTX[iX]==0]      # returns empty array if nothing there
-    # zeroXCp = np.squeeze(tdv.Cp[:,:,zeroXIdx])
-    # return tdv.Cp * tdv.f -
     #Cpa=(Cp.*f -repmat(squeeze(Cp(:,:,1)),1,1,length(m)))./mm;
-    return None
+    # TODO: relying on first item in X dimension to be 0 - do this programmatically instead
+    return (tdv.Cp * tdv.f - tdv.Cp[:, :, 0, np.newaxis]) / _getDividableBy(gPTX[iX])
 
 
-# TODO: implement once key questions are answered
-def evalApparentVolume(PTX, gPTX, tdv):
+def evalApparentVolume(gPTX, tdv):
     """ slope of a chord between pure water and a concentration on a V v. X graph
     :return:    Va
     """
     # Va=1e6*(V.*f - repmat(squeeze(V(:,:,1)),1,1,length(m)))./mm;
-    return None
+    # TODO: relying on first item in X dimension to be 0 - do this programmatically instead
+    return 1e6 * (tdv.V * tdv.f - tdv.V[:, :, 0, np.newaxis]) / _getDividableBy(gPTX[iX])
+
+
+def _getDividableBy(inp):
+    eps = np.finfo(inp.dtype).eps
+    return np.where(inp != 0, inp, eps)
 
 
 def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='gPTX',
                 reqDerivs=[], parmderivs='derivs', reqTDV=[], parmtdv='tdv', reqSpline=False, parmspline='gibbsSp',
-                reqPTX=False, parmptx='PTX'):
+                reqPTX=False, parmptx='PTX', req0X=False):
     """ Builds a TDVSpec namedtuple indicating what is required to calculate this particular thermodynamic variable
     :param name:        the name / symbol of the tdv (e.g., G, rho, alpha, muw)
     :param calcFn:      the name of the function used to calculate the tdv
@@ -410,6 +443,7 @@ def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     :param parmspline:  the name of the parameter of calcFn used to pass in the spline def if reqSpline
     :param reqPTX:      If True, calcFn needs the original dimension input (parm PTX in evalSolutionGibbs) to run
     :param parmptx:     the name of the parameter of calcFn used to pass in the original input if reqPTX
+    :param req0X:       if True, calcFn needs the 0 concentration for calculating apparent values
     :return:            a namedtuple giving the spec for the tdv
     """
     reqTDV = set(reqTDV); reqDerivs = set(reqDerivs)    # make these sets to enforce uniqueness and immutability
@@ -419,6 +453,7 @@ def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
         raise ValueError('One or more derivatives are not supported. Amend the ' + name + ' TDVSpec accordingly.' +
                          'Supported derivatives are '+pformat(derivativenames))
     arginfo = getargvalues(currentframe())
+    # build properties of the TDVSpec dynamically
     flds = arginfo.args
     if not reqM:        flds.remove('parmM')
     if not reqGrid:     flds.remove('parmgrid')
@@ -458,8 +493,8 @@ def getSupportedThermodynamicVariables():
         _getTDVSpec('Cpm', evalPartialMolarHeatCapacity, reqM=True, reqGrid=True, reqDerivs=['d2T1X'],
                     reqTDV=['Cp', 'f']),
         _getTDVSpec('V', evalVolume, reqTDV=['rho']),
-        _getTDVSpec('Cpa', evalApparentSpecificHeat, reqX=True, reqGrid=True, reqTDV=['Cp', 'f'], reqPTX=True),
-        _getTDVSpec('Va', evalApparentVolume, reqX=True, reqGrid=True, reqTDV=['V', 'f'], reqPTX=True)
+        _getTDVSpec('Cpa', evalApparentSpecificHeat, reqX=True, reqGrid=True, reqTDV=['Cp','f'], req0X=True),
+        _getTDVSpec('Va', evalApparentVolume, reqX=True, reqGrid=True, reqTDV=['V', 'f'], req0X=True)
             ])
     # check that all reqTDVs are represented in the list
     outnames = frozenset([t.name for t in out])
