@@ -470,10 +470,10 @@ def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     if not reqTDV:      flds.remove('parmtdv')
     if not reqSpline:   flds.remove('parmspline')
     if not reqPTX:      flds.remove('parmptx')
-    vals = [arginfo.locals[v] for v in arginfo.locals if v in flds]
+    vals = {f:v for f, v in arginfo.locals.items() if f in flds}
 
-    tdvspec = namedtuple('TDVSpec', flds, defaults=vals)
-    return tdvspec()
+    tdvspec = namedtuple('TDVSpec', flds)
+    return tdvspec(**vals)
 
 
 def getSupportedThermodynamicVariables():
