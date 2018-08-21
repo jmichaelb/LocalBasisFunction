@@ -538,15 +538,15 @@ def getSupportedDerivatives():
     :return:    an immutable iterable containing a list of supported derivatives
     """
     return tuple([
-        derivSpec('d1P', wrtP=1),
-        derivSpec('d1T', wrtT=1),
-        derivSpec('d1X', wrtX=1),
-        derivSpec('dPT', wrtP=1, wrtT=1),
-        derivSpec('dPX', wrtP=1, wrtX=1),
-        derivSpec('d2P', wrtP=2),
-        derivSpec('d2T', wrtT=2),
-        derivSpec('d2T1X', wrtT=2, wrtX=1),
-        derivSpec('d3P', wrtP=3)
+        derivSpec('d1P', wrtP=1, wrtT=defDer, wrtX=defDer),
+        derivSpec('d1T', wrtP=defDer, wrtT=1, wrtX=defDer),
+        derivSpec('d1X', wrtP=defDer, wrtT=defDer, wrtX=1),
+        derivSpec('dPT', wrtP=1, wrtT=1, wrtX=defDer),
+        derivSpec('dPX', wrtP=1, wrtT=defDer, wrtX=1),
+        derivSpec('d2P', wrtP=2, wrtT=defDer, wrtX=defDer),
+        derivSpec('d2T', wrtP=defDer, wrtT=2, wrtX=defDer),
+        derivSpec('d2T1X', wrtP=defDer, wrtT=2, wrtX=1),
+        derivSpec('d3P', wrtP=3,wrtT=defDer, wrtX=defDer)
     ])
 
 
@@ -595,7 +595,7 @@ defDer = 0                  # default derivative
 vmWarningFactor = 2         # warn the user when size of output would exceed vmWarningFactor times total virtual memory
 floatSizeBytes = int(np.finfo(float).bits / 8)
 
-derivSpec = namedtuple('DerivativeSpec', ['name', 'wrtP', 'wrtT', 'wrtX'], defaults=[None, defDer, defDer, defDer])
+derivSpec = namedtuple('DerivativeSpec', ['name', 'wrtP', 'wrtT', 'wrtX'])
 derivatives = getSupportedDerivatives()
 derivativenames = {d.name for d in derivatives}
 
