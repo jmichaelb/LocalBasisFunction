@@ -196,7 +196,9 @@ def expandTDVSpec(tdvSpec, dimCt):
 
 def createThermodynamicStatesObj(dimCt, tdvSpec, PTX):
     flds = {t.name for t in tdvSpec} | {'PTX'}
-    TDS = type('ThermodynamicStates', (object,), {f: (PTX if f == 'PTX' else None) for f in flds})
+    # copy PTX so if you add a 0 concentration, you affect only the version in the output var
+    # so later you can compare the original PTX to the one in tdvout.PTX to see if you need to remove the 0 X
+    TDS = type('ThermodynamicStates', (object,), {f: (np.copy(PTX) if f == 'PTX' else None) for f in flds})
     out = TDS()
     # prepend a 0 concentration if one is needed by any of the quantities being calculated
     if _needs0X(dimCt, PTX, tdvSpec):
@@ -222,9 +224,16 @@ def _remove0X(tdvout, origPTX):
     if tdvout.PTX.size == 3 and tdvout.PTX[iX].size != origPTX[iX].size:
         tdvout.PTX[iX] = np.delete(tdvout.PTX[iX], 0, 0)
         # go through all calculated values and remove the first item from the X dimension
-        for p,v in vars(tdvout).iteritems():
-            setattr(tdvout, p, v[:,:,1:])
+        # TODO: figure out why PTX doesn't show up here
+        for p,v in vars(tdvout).items():
+            setattr(tdvout, p, v[_buildSliceDirective(v)])
 
+
+def _buildSliceDirective(tdv):
+    # TODO: This assumes that the X dim is always last but this may not always be true
+    slc = [slice(None)] * len(tdv.shape)
+    slc[-1] = slice(1,None)
+    return tuple(slc)
 
 
 def _createGibbsDerivativesClass(tdvSpec):
@@ -266,7 +275,7 @@ def getDerivatives(gibbsSp, PTX, dimCt, tdvSpec, verbose=False):
 
 
 def _getGriddedPTX(tdvSpec, PTX, verbose=False):
-    if [t for t in tdvSpec if t.reqGrid]:
+    if any([t.reqGrid for t in tdvSpec]):
         start = time()
         out = np.meshgrid(*PTX.tolist(), indexing='ij')    # grid the dimensions of PTX
         end = time()
