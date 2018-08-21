@@ -1,4 +1,4 @@
-function  Results=fnGval(sp,input,M)
+function  Results=fnGval(sp,input)
 % function to return rho,vel, G, Cp, alpha S U H K and Kp for G splines in either (P and T) or (m, P, and T)
 %  ALL MKS with P in MPa
 %    Usage: Results=G_sp_eval(sp,input, MW) 
@@ -11,12 +11,13 @@ function  Results=fnGval(sp,input,M)
 %           mu is dG/dm where m is in units determined externally
 %  
 % JMB 2015  
-nw=1000/18.0152;  % number of moles of water in a kilogram of water
+nw=1000/18.01528;  % number of moles of water in a kilogram of water
+R=8.3144;  %kJ/mol/K
 
 % if a 3rd input argument is given (a molecular weight) then calculate
 % partial molar quantities (mu_flg=1)
 mu_flg=1;
-if nargin==2
+if length(sp.knots)==2
     mu_flg=0;
 end
 
@@ -52,12 +53,32 @@ if nd==2   % spline in P and T only
     end
 
 else  % spline in P, T and compositions
+    if (isfield(sp,'MW'))
+        M=sp.MW;
+    else
+        error('a compositional LBF needs the molecular weight set in the structure')
+    end
+    if (isfield(sp,'nu'))
+        nu=sp.nu;
+    else
+        error('a compositional LBF needs the number of ions in solution (nu) set in the structure')
+    end
+    if (isfield(sp,'Go'))
+        Goin=sp.Go;         
+    else
+        error('a compositional LBF needs the standard state of the solute at the reference P')
+    end
     if iscell(input) % gridded output
         P=input{1};T=input{2};  m=input{3}; 
+        if(isstruct(Goin))
+            Go=fnval(Goin,T);  % using a spline for the standard state vs T
+        else
+            Go=1;
+        end
         m(m==0)=eps; % add eps to zero concentrations
         mflg=0;
         if mu_flg
-        if (m(1)~=eps)
+        if (m(1)>eps)
           m=[eps;m(:)];  % add in a zero value in order to calculate apparent quantities and remove it later
           mflg=1;
         end
@@ -77,6 +98,12 @@ else  % spline in P, T and compositions
         Tm=input(:,2);
         Pm=input(:,1);
         mm=input(:,3); 
+        if(isstruct(Goin))
+            Go=fnval(Goin,Tm);  % using a spline for the standard state vs T
+        else
+            Go=1;
+        end
+        
         m=mm;
         if mu_flg
           mm0=zeros(size(mm))+eps;
@@ -106,6 +133,7 @@ else  % spline in P, T and compositions
 end
 
 Cp=-d2T.*Tm;
+Cv= Cp + Tm.*dPT.^2./d2P;
 S=-d1T;
 vel=real(sqrt(d1P.^2./(dPT.^2./d2T - d2P))); % MPa-Pa units conversion cancels
 rho=1e6*d1P.^(-1);  % 1e6 for MPa to Pa
@@ -122,13 +150,22 @@ if iscell(input) % gridded output
      f=1+M*mm;
      V=rho.^-1;
      mus=M*G + f.*dGdm;
+     G_ss=Go+mus(:,:,1)-mus(1,:,1);   
      muw=G/nw - 1/nw*f.*mm.*dGdm;
 %     muw=G/nw - (mm/nw).*dGdm;
      Vm=M*d1P +f.*d2Pm;
      Cpm=M*Cp - f.* d3Tm.*Tm;
      Cpa=(Cp.*f -repmat(squeeze(Cp(:,:,1)),1,1,length(m)))./mm;
      Va=1e6*(V.*f - repmat(squeeze(V(:,:,1)),1,1,length(m)))./mm;
+     Vex= Va-Vm(:,:,1); 
+     gamma=exp(1/R*1/nu*(mus-G_ss)./Tm - log(mm));
+     phi=-nw*(muw-G(:,:,1)/nw)./mm./Tm/R/nu;
+     aw=exp(-mm.*phi*2/nw);
+     Gex=nu*R*Tm.*mm.*(log(gamma)-(phi-1)); % factor of m?
+%     Gex=G.*f-G(:,:,1)+mm.*(G_ss+nu*R*Tm.*(1-log(mm))); % not debugged
+
      if mflg  % remove the added zero concentration ppoint
+       mm=mm(:,:,2:end);
        Va=Va(:,:,2:end);
        Cpa=Cpa(:,:,2:end);
        Vm=Vm(:,:,2:end);
@@ -136,6 +173,7 @@ if iscell(input) % gridded output
        G=G(:,:,2:end);
        rho=rho(:,:,2:end);
        Cp=Cp(:,:,2:end);
+       Cv=Cv(:,:,2:end);
        S=S(:,:,2:end);
        vel=vel(:,:,2:end);
        Ks=Ks(:,:,2:end);
@@ -147,6 +185,13 @@ if iscell(input) % gridded output
        mus=mus(:,:,2:end);
        muw=muw(:,:,2:end);
        f=f(:,:,2:end);
+       gamma=gamma(:,:,2:end);
+       phi=phi(:,:,2:end);
+       G_ss=G_ss(:,:,2:end);
+       Vex=Vex(:,:,2:end);
+       Gex=Gex(:,:,2:end);
+       aw=aw(:,:,2:end);
+      
      end
   else
     mus=[];
@@ -156,9 +201,16 @@ if iscell(input) % gridded output
     f=[];
     Vm=[];
     Cpm=[];
+    gamma=[];
+    phi=[];
+    G_ss=[];
+    Vex=[];
+    Gex=[];
+    aw=[];
   end
-else  % Scattered data
+else  % Scattered data  - broken at moment - need to calculate second set of points at zero concentration
    if mu_flg==1   
+       warning('The mixing quantities (Vex, Gex, gamma,etc are currently broken - needs code revision')
       f=1+M*mm;
       V=rho.^-1;
       mus=M*G + f.*dGdm;
@@ -167,6 +219,13 @@ else  % Scattered data
       Cpm=M*Cp - f.* d3Tm.*Tm;
       Cpa=(Cp.*f - Cp0)./mm;
       Va=1e6*(V.*f - V0)./mm;
+      Vex=Va-Vm(:,:,1);
+      G_ss=Go+R*nu*Tm.*log(mm);
+      gamma=exp(1/R*1/nu*(mus-G_ss)./Tm - log(mm));
+      phi=-nw*(muw-G(:,:,1)/nw)./mm./Tm/R/nu;
+      Gex=nu*R*Tm.*(log(gamma)-(phi-1)); 
+      aw=exp(-mm.*phi*2/nw);
+
    else
      mus=[];
      muw=[];
@@ -175,6 +234,12 @@ else  % Scattered data
      f=[];
      Vm=[];
      Cpm=[];
+     gamma=[];
+     phi=[];
+     G_ss=[];
+     Vex=[];
+     Gex=[];
+     aw=[];
    end
 end
 
@@ -183,6 +248,7 @@ Results.Va=Va;
 Results.Cpa=Cpa;
 Results.Cp=Cp;
 Results.G=G;
+Results.Cv=Cv;
 Results.vel=vel;
 Results.Kt=Kt;
 Results.Ks=Ks;
@@ -191,11 +257,22 @@ Results.S=S;
 Results.U=U;
 Results.H=H;
 Results.alpha=alpha;
-Results.mus=mus;
-Results.muw=muw;
-Results.f=f;
-Results.Vm=Vm;
-Results.Cpm=Cpm;
+if mu_flg
+    Results.mus=mus;
+    Results.muw=muw;
+    Results.f=f;
+    Results.m=mm;
+    Results.Vm=Vm;
+    Results.Cpm=Cpm;
+    Results.gamma=gamma;
+    Results.phi=phi;
+    Results.G_ss=G_ss;
+    Results.Vex=Vex;
+    Results.Gex=Gex;
+    Results.aw=aw;
+end
+
+
 
 Results.d1P=d1P;
 Results.d2P=d2P;
