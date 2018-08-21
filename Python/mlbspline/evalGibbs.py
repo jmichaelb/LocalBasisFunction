@@ -67,6 +67,7 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
                         rho         returns density in kg/m^3
                         vel         returns sound speed in m/s
                         Cp          returns isobaric specific heat in J/kg/K
+                        Cv          returns isochoric specific heat in J/kg/K
                         alpha       returns thermal expansivity in 1/K
                         U           returns internal energy in J/kg
                         H           returns enthalpy in J/kg
@@ -98,6 +99,7 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
     tdvout = createThermodynamicStatesObj(dimCt, tdvSpec, PTX)
     derivs = getDerivatives(gibbsSp, tdvout.PTX, dimCt, tdvSpec, verbose)
     gPTX = _getGriddedPTX(tdvSpec, tdvout.PTX, verbose)
+    f = _getVolWaterInVolSlnConversion(M, tdvout.PTX)
 
     # calculate thermodynamic variables and store in appropriate fields in tdvout
     completedTDVs = set()     # list of completed tdvs
@@ -114,8 +116,9 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
             if t.reqTDV:    args[t.parmtdv] = tdvout
             if t.reqSpline: args[t.parmspline] = gibbsSp
             if t.reqPTX:    args[t.parmptx] = tdvout.PTX    # use the PTX from tdvout, which may have 0 X added
+            if t.reqF:      args[t.parmf] = f
             start = time()
-            setattr(tdvout, t.name, t.calcFn(**args))
+            setattr(tdvout, t.name, t.calcFn(**args))       # calculate the value and set it in the output
             end = time()
             if verbose: _printTiming('tdv '+t.name, start, end)
             completedTDVs.add(t.name)
@@ -137,14 +140,14 @@ def _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate):
     # if a PTX spline, make sure the X dimension starts with 0
     if dimCt == 0 and knotranges[iX][0] != 0:
         raise ValueError('The PTX spline does not include 0 concentrations.')
-    # make sure that spline has 3 dims if tdvs using concentration are requested
-    reqX = [t for t in tdvSpec if t.reqX]
+    # make sure that spline has 3 dims if tdvs using concentration or f are requested
+    reqX = [t for t in tdvSpec if t.reqX or t.reqF]
     if dimCt == 2 and reqX:
         raise ValueError('You cannot calculate ' + pformat([t.name for t in reqX]) + ' with a spline that does not ' +
                          'include concentration. Remove those statevars and all their dependencies, or supply a ' +
                          'spline that includes concentration.')
-    # make sure that M is provided if any tdvs that require M are requested
-    reqM = [t for t in tdvSpec if t.reqM]
+    # make sure that M is provided if any tdvs that require M or f are requested
+    reqM = [t for t in tdvSpec if t.reqM or t.reqF]
     if M == 0 and reqM:
         raise ValueError('You cannot calculate ' + pformat([t.name for t in reqM]) + ' without providing solute ' +
                          'molecular weight.  Remove those statevars and all their dependencies, or provide a ' +
@@ -224,7 +227,7 @@ def _remove0X(tdvout, origPTX):
     if tdvout.PTX.size == 3 and tdvout.PTX[iX].size != origPTX[iX].size:
         tdvout.PTX[iX] = np.delete(tdvout.PTX[iX], 0, 0)
         # go through all calculated values and remove the first item from the X dimension
-        # TODO: figure out why PTX doesn't show up here
+        # TODO: figure out why PTX doesn't show up in vars
         for p,v in vars(tdvout).items():
             setattr(tdvout, p, v[_buildSliceDirective(v)])
 
@@ -285,7 +288,7 @@ def _getGriddedPTX(tdvSpec, PTX, verbose=False):
     return out
 
 
-def evalVolWaterInVolSolutionConversion(M, PTX):
+def _getVolWaterInVolSlnConversion(M, PTX):
     """ Dimensionless conversion factor for how much of the volume of 1 kg of solution is really just the water
     :return:    f
     """
@@ -299,11 +302,20 @@ def evalGibbs(gibbsSp, PTX):
     return evalMultivarSpline(gibbsSp, PTX)
 
 
-def evalSpecificHeat(gPTX, derivs):
+def evalIsobaricSpecificHeat(gPTX, derivs):
     """
     :return:        Cp
     """
     return -1 * derivs.d2T * gPTX[iT]
+
+
+def evalIsochoricSpecificHeat(tdv, gPTX, derivs):
+    """
+
+    :return:    Cv
+    """
+    #Cv= Cp + Tm.*dPT.^2./d2P;
+    return tdv.Cp + gPTX[iT] * np.power(derivs.dPT, 2) / derivs.d2P
 
 
 def evalEntropy(derivs):
@@ -364,18 +376,18 @@ def evalInternalEnergy(gPTX, tdv):
     return tdv.G - 1e6 * gPTX[iP] / tdv.rho + gPTX[iT] * tdv.S
 
 
-def evalSoluteChemicalPotential(M, derivs, tdv):
+def evalSoluteChemicalPotential(M, f, derivs, tdv):
     """
     :return:        mus
     """
-    return M * tdv.G + tdv.f * derivs.d1X
+    return M * tdv.G + f * derivs.d1X
 
 
-def evalWaterChemicalPotential(gPTX, derivs, tdv):
+def evalWaterChemicalPotential(f, gPTX, derivs, tdv):
     """
     :return:        muw
     """
-    return (tdv.G / Mwater) - (1 / Mwater * tdv.f * gPTX[iX] * derivs.d1X)
+    return (tdv.G / Mwater) - (1 / Mwater * f * gPTX[iX] * derivs.d1X)
 
 
 def evalEnthalpy(gPTX, tdv):
@@ -385,18 +397,18 @@ def evalEnthalpy(gPTX, tdv):
     return tdv.U - gPTX[iT] * tdv.S
 
 
-def evalPartialMolarVolume(M, derivs, tdv):
+def evalPartialMolarVolume(M, f, derivs):
     """ Slope at a point of the V v. X graph
     :return:        Vm
     """
-    return (M * derivs.d1P) + (tdv.f * derivs.dPX)
+    return (M * derivs.d1P) + (f * derivs.dPX)
 
 
-def evalPartialMolarHeatCapacity(M, tdv, derivs, gPTX):
+def evalPartialMolarHeatCapacity(M, f, tdv, derivs, gPTX):
     """
     :return:    Cpm
     """
-    return M * tdv.Cp - tdv.f * derivs.d2T1X * gPTX[iT]
+    return M * tdv.Cp - f * derivs.d2T1X * gPTX[iT]
 
 
 def evalVolume(tdv):
@@ -406,22 +418,22 @@ def evalVolume(tdv):
     return np.power(tdv.rho, -1)
 
 
-def evalApparentSpecificHeat(gPTX, tdv):
+def evalApparentSpecificHeat(f, gPTX, tdv):
     """
     :return:    Cpa
     """
     #Cpa=(Cp.*f -repmat(squeeze(Cp(:,:,1)),1,1,length(m)))./mm;
-    # TODO: relying on first item in X dimension to be 0 - do this programmatically instead
-    return (tdv.Cp * tdv.f - tdv.Cp[:, :, 0, np.newaxis]) / _getDividableBy(gPTX[iX])
+    # TODO: relying on X dimension to be in a specific place - do this programmatically instead
+    return (tdv.Cp * f - tdv.Cp[:, :, 0, np.newaxis]) / _getDividableBy(gPTX[iX])
 
 
-def evalApparentVolume(gPTX, tdv):
+def evalApparentVolume(f, gPTX, tdv):
     """ slope of a chord between pure water and a concentration on a V v. X graph
     :return:    Va
     """
     # Va=1e6*(V.*f - repmat(squeeze(V(:,:,1)),1,1,length(m)))./mm;
-    # TODO: relying on first item in X dimension to be 0 - do this programmatically instead
-    return 1e6 * (tdv.V * tdv.f - tdv.V[:, :, 0, np.newaxis]) / _getDividableBy(gPTX[iX])
+    # TODO: relying on X dimension to be in a specific place - do this programmatically instead
+    return 1e6 * (tdv.V * f - tdv.V[:, :, 0, np.newaxis]) / _getDividableBy(gPTX[iX])
 
 
 def _getDividableBy(inp):
@@ -429,7 +441,7 @@ def _getDividableBy(inp):
     return np.where(inp != 0, inp, eps)
 
 
-def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='gPTX',
+def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='gPTX', reqF=False, parmf='f',
                 reqDerivs=[], parmderivs='derivs', reqTDV=[], parmtdv='tdv', reqSpline=False, parmspline='gibbsSp',
                 reqPTX=False, parmptx='PTX', req0X=False):
     """ Builds a TDVSpec namedtuple indicating what is required to calculate this particular thermodynamic variable
@@ -440,8 +452,13 @@ def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     :param parmM:       the name of the parameter of calcFn used to pass in M if reqM
     :param reqGrid:     True if DIRECTLY calculating the tdv requires you to grid the PT[X] values.  False otherwise
     :param parmgrid:    the name of the parameter of calcFn used to pass in the gridded input dimensions if reqGrid
+    :param reqF:        True if DIRECTLY calculating the tdv requires the conversion factor that gives the volume
+                        of water in a volume of solution
+    :param parmf:       the name of the parameter of calcFn used to pass in the vol water to vol solution conversion
+                        factor
     :param reqDerivs:   A list of derivatives needed to DIRECTLY calculate the tdv
-                        (e.g. for tdv Kp, this would be ['d1P','dP','d3P'] - see fn evalIsothermalBulkModulusWrtPressure)
+                        (e.g. for tdv Kp, this would be ['d1P','dP','d3P']
+                        - see fn evalIsothermalBulkModulusWrtPressure)
                         See getDerivatives for a full list of derivatives that can be calculated
     :param parmderivs:  the name of the parameter of calcFn used to pass in the pre-calculated derivatives if reqDerivs
     :param reqTDV:      A list of other thermodynamic variables needed to DIRECTLY calculate the tdv
@@ -487,7 +504,8 @@ def getSupportedThermodynamicVariables():
         _getTDVSpec('G', evalGibbs, reqSpline=True, reqPTX=True),
         _getTDVSpec('rho', evalDensity, reqDerivs=['d1P']),
         _getTDVSpec('vel', evalSoundSpeed, reqDerivs=['d1P', 'dPT', 'd2T', 'd2P']),
-        _getTDVSpec('Cp', evalSpecificHeat, reqGrid=True, reqDerivs=['d2T']),
+        _getTDVSpec('Cp', evalIsobaricSpecificHeat, reqGrid=True, reqDerivs=['d2T']),
+        _getTDVSpec('Cv', evalIsochoricSpecificHeat, reqGrid=True, reqDerivs=['dPT', 'd2P'], reqTDV=['Cp']),
         _getTDVSpec('alpha', evalThermalExpansivity, reqDerivs=['dPT'], reqTDV=['rho']),
         _getTDVSpec('U', evalInternalEnergy, reqGrid=True, reqTDV=['G', 'rho', 'S']),
         _getTDVSpec('H', evalEnthalpy, reqGrid=True, reqTDV=['U', 'S']),
@@ -495,15 +513,15 @@ def getSupportedThermodynamicVariables():
         _getTDVSpec('Kt', evalIsothermalBulkModulus, reqDerivs=['d1P', 'd2P']),
         _getTDVSpec('Kp', evalIsothermalBulkModulusWrtPressure, reqDerivs=['d1P', 'd2P', 'd3P']),
         _getTDVSpec('Ks', evalIsotropicBulkModulus, reqTDV=['rho', 'vel']),
-        _getTDVSpec('f', evalVolWaterInVolSolutionConversion, reqX=True, reqM=True, reqPTX=True),
-        _getTDVSpec('mus', evalSoluteChemicalPotential, reqM=True, reqDerivs=['d1X'], reqTDV=['f', 'G']),
-        _getTDVSpec('muw', evalWaterChemicalPotential, reqX=True, reqGrid=True, reqDerivs=['d1X'], reqTDV=['f', 'G']),
-        _getTDVSpec('Vm', evalPartialMolarVolume, reqM=True, reqDerivs=['d1P', 'dPX'], reqTDV=['f']),
-        _getTDVSpec('Cpm', evalPartialMolarHeatCapacity, reqM=True, reqGrid=True, reqDerivs=['d2T1X'],
-                    reqTDV=['Cp', 'f']),
+        _getTDVSpec('mus', evalSoluteChemicalPotential, reqM=True, reqF=True, reqDerivs=['d1X'], reqTDV=['G']),
+        _getTDVSpec('muw', evalWaterChemicalPotential, reqX=True, reqGrid=True, reqF=True, reqDerivs=['d1X'],
+                    reqTDV=['G']),
+        _getTDVSpec('Vm', evalPartialMolarVolume, reqM=True, reqF=True, reqDerivs=['d1P', 'dPX']),
+        _getTDVSpec('Cpm', evalPartialMolarHeatCapacity, reqM=True, reqGrid=True, reqF=True, reqDerivs=['d2T1X'],
+                    reqTDV=['Cp']),
         _getTDVSpec('V', evalVolume, reqTDV=['rho']),
-        _getTDVSpec('Cpa', evalApparentSpecificHeat, reqX=True, reqGrid=True, reqTDV=['Cp','f'], req0X=True),
-        _getTDVSpec('Va', evalApparentVolume, reqX=True, reqGrid=True, reqTDV=['V', 'f'], req0X=True)
+        _getTDVSpec('Cpa', evalApparentSpecificHeat, reqX=True, reqGrid=True, reqF=True, reqTDV=['Cp'], req0X=True),
+        _getTDVSpec('Va', evalApparentVolume, reqX=True, reqGrid=True, reqF=True, reqTDV=['V'], req0X=True)
             ])
     # check that all reqTDVs are represented in the list
     outnames = frozenset([t.name for t in out])
