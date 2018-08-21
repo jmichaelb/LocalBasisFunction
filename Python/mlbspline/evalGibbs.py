@@ -14,7 +14,6 @@ from mlbspline.eval import evalMultivarSpline
 
 # TODO: probably should move this to a different namespace
 def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, *tdvSpec):
-    # TODO: check and document units for all statevars
     # TODO: add logging? possibly in stead of verbose
     """ Calculates thermodynamic variables for solutions based on a spline giving Gibbs energy
     This only supports single-solute solutions.
@@ -229,14 +228,9 @@ def _remove0X(tdvout, origPTX):
         # go through all calculated values and remove the first item from the X dimension
         # TODO: figure out why PTX doesn't show up in vars
         for p,v in vars(tdvout).items():
-            setattr(tdvout, p, v[_buildSliceDirective(v)])
-
-
-def _buildSliceDirective(tdv):
-    # TODO: This assumes that the X dim is always last but this may not always be true
-    slc = [slice(None)] * len(tdv.shape)
-    slc[-1] = slice(1,None)
-    return tuple(slc)
+            slc = [slice(None)] * len(tdvout.shape)
+            slc[iX] = slice(1,None)
+            setattr(tdvout, p, v[tuple(slc)])
 
 
 def _createGibbsDerivativesClass(tdvSpec):
@@ -423,8 +417,7 @@ def evalApparentSpecificHeat(f, gPTX, tdv):
     :return:    Cpa
     """
     #Cpa=(Cp.*f -repmat(squeeze(Cp(:,:,1)),1,1,length(m)))./mm;
-    # TODO: relying on X dimension to be in a specific place - do this programmatically instead
-    return (tdv.Cp * f - tdv.Cp[:, :, 0, np.newaxis]) / _getDividableBy(gPTX[iX])
+    return (tdv.Cp * f - _get0XTdv(tdv, 'Cp')) / _getDividableBy(gPTX[iX])
 
 
 def evalApparentVolume(f, gPTX, tdv):
@@ -432,8 +425,13 @@ def evalApparentVolume(f, gPTX, tdv):
     :return:    Va
     """
     # Va=1e6*(V.*f - repmat(squeeze(V(:,:,1)),1,1,length(m)))./mm;
-    # TODO: relying on X dimension to be in a specific place - do this programmatically instead
-    return 1e6 * (tdv.V * f - tdv.V[:, :, 0, np.newaxis]) / _getDividableBy(gPTX[iX])
+    return 1e6 * (tdv.V * f - _get0XTdv(tdv, 'V')) / _getDividableBy(gPTX[iX])
+
+
+def _get0XTdv(tdv, prop):
+    slc = [slice(None)] * (len(tdv.PTX))
+    slc[iX] = slice(0,1)
+    return getattr(tdv, prop)[tuple(slc)]
 
 
 def _getDividableBy(inp):
