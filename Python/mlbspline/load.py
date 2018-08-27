@@ -1,4 +1,5 @@
-from scipy.io import whosmat, loadmat
+#from scipy.io import whosmat, loadmat
+from hdf5storage import loadmat
 import numpy as np
 
 # TODO: support a spline with dim > 1 (low priority)
@@ -11,33 +12,39 @@ def loadSpline(splineFile, splineVar=None):
     :param splineVar: variable to load from splineFile
     :return: a dict with the spline representation
     """
-    contents = {var[0]: {'shape': var[1], 'class': var[2]} for var in whosmat(splineFile)}
+    f = loadmat(splineFile, variable_names = None if splineVar is None else [splineVar], chars_as_strings=True)
+    contents = [k for k in f.keys() if not k.startswith('__')]
     if splineVar is None:
-        if not len(contents) == 1:
-            # TODO: throw error indicating we don't know which var to load
-            pass
+        if len(contents) == 1:
+            splineVar = contents[0]
         else:
-            splineVar = next(iter(contents))
-    if splineVar not in contents or not contents[splineVar]['class'] == 'struct':
-        # TODO: throw an error indicating splineVar is missing or has wrong type
-        pass
-    raw = loadmat(splineFile,chars_as_strings=True,variable_names=[splineVar])[splineVar]
-    # out = h5py.File(splineFile,'r')[splineVar]
+            raise ValueError('The splineFile contains multiple variables: ' + ', '.join(contents) +
+                             'Please provide the appropriate splineVar.')
+    elif splineVar not in contents :
+        raise ValueError('The specified splineVar cannot be found in the specified file.  It only contains ' +
+                         'variables ' + ', '.join(contents))
+    raw = f[splineVar]
     spd = getSplineDict(raw)
     validateSpline(spd)
     return spd
 
 
+def _dataset2str(ds):
+    return ''.join(chr(c) for c in ds)
+
+
 def getSplineDict(matSp):
-    flds = matSp[0][0].dtype.names
+    # TODO: try to find better way to identify the Matlab version of the file
+    v = 7.0 if matSp[0][0].dtype.names == matSp[0].dtype.names else 7.3
+    spl = matSp[0][0] if v == 7.0 else matSp[0]
 
     out = {
-        'form':     matSp[0][0][flds.index('form')][0],
-        'knots':    np.array([kd[0] for kd in matSp[0][0][flds.index('knots')][0]]),
-        'number':   matSp[0][0][flds.index('number')][0],
-        'order':    matSp[0][0][flds.index('order')][0],
-        'dim':      matSp[0][0][flds.index('dim')][0],
-        'coefs':    matSp[0][0][flds.index('coefs')]
+        'form':     matSp[0]['form'][0][0],  # only on this one can the same slicing be used for both 7 and 7.3
+        'knots':    np.array([kd[0] for kd in spl['knots'][0]]),
+        'number':   spl['number'][0].astype(int),
+        'order':    spl['order'][0].astype(int),
+        'dim':      spl['dim'][0].astype(int),
+        'coefs':    spl['coefs']
     }
     # note: if dim = 1 and coefs has dimensions [1 number], the coefs should be reshaped
     # e.g. number is [50,20] but coefs has shape (1,50,20)
@@ -46,6 +53,54 @@ def getSplineDict(matSp):
         # don't squeeze in case other dimensions also singleton
         out['coefs'] = out['coefs'][0,] # just select the single value from the dimension with size 1
     return out
+
+
+def _getForm7(rawspl):
+    return rawspl[0][0]['form'][0]
+
+
+def _getForm73(rawspl):
+    return rawspl[0]['form'][0][0]
+
+
+def _getKnots7(rawspl):
+    return np.array([kd[0] for kd in rawspl[0][0]['knots'][0]])
+
+
+def _getKnots73(rawspl):
+    return np.array([kd[0] for kd in rawspl[0]['knots'][0]])
+
+
+def _getNumber7(rawspl):
+    return rawspl[0][0]['number'][0]
+
+
+def _getNumber73(rawspl):
+    return rawspl[0]['number'][0].astype(int)
+
+
+def _getOrder7(rawspl):
+    return rawspl[0][0]['order'][0]
+
+
+def _getOrder73(rawspl):
+    return rawspl[0]['order'][0].astype(int)
+
+
+def _getDim7(rawspl):
+    return rawspl[0][0]['dim'][0]
+
+
+def _getDim73(rawspl):
+    return rawspl[0]['dim'][0].astype(int)
+
+
+def _getCoefs7(rawspl):
+    return rawspl[0][0]['coefs']
+
+
+def _getCoefs73(rawspl):
+    return rawspl[0]['coefs']
 
 
 def validateSpline(spd):
