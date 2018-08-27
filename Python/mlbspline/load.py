@@ -55,54 +55,6 @@ def getSplineDict(matSp):
     return out
 
 
-def _getForm7(rawspl):
-    return rawspl[0][0]['form'][0]
-
-
-def _getForm73(rawspl):
-    return rawspl[0]['form'][0][0]
-
-
-def _getKnots7(rawspl):
-    return np.array([kd[0] for kd in rawspl[0][0]['knots'][0]])
-
-
-def _getKnots73(rawspl):
-    return np.array([kd[0] for kd in rawspl[0]['knots'][0]])
-
-
-def _getNumber7(rawspl):
-    return rawspl[0][0]['number'][0]
-
-
-def _getNumber73(rawspl):
-    return rawspl[0]['number'][0].astype(int)
-
-
-def _getOrder7(rawspl):
-    return rawspl[0][0]['order'][0]
-
-
-def _getOrder73(rawspl):
-    return rawspl[0]['order'][0].astype(int)
-
-
-def _getDim7(rawspl):
-    return rawspl[0][0]['dim'][0]
-
-
-def _getDim73(rawspl):
-    return rawspl[0]['dim'][0].astype(int)
-
-
-def _getCoefs7(rawspl):
-    return rawspl[0][0]['coefs']
-
-
-def _getCoefs73(rawspl):
-    return rawspl[0]['coefs']
-
-
 def validateSpline(spd):
     """Checks the spline representation to make sure it has all the expected fields for evaluation
     Throws an error if anything is missing (one at a time)
