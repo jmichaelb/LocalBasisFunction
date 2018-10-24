@@ -12,14 +12,14 @@ from psutil import virtual_memory
 from mlbspline.eval import evalMultivarSpline
 
 
-# TODO: probably should move this to a different namespace
-def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, *tdvSpec):
+def evalSolutionGibbs(gibbsSp, PTX, MWv=18.01528e-3, MWu=None, failOnExtrapolate=True, verbose=False, *tdvSpec):
     # TODO: add logging? possibly in stead of verbose
     """ Calculates thermodynamic variables for solutions based on a spline giving Gibbs energy
-    This only supports single-solute solutions.
+    This currently only supports single-solute solutions.
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     Warning: units must be as specified here because some conversions are hardcoded into this function.
+        With the exception of pressure, units are SI.  Pressure is in MPa rather than Pa.
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     For developers: to add a new thermodynamic variable (TDV), all of the following should be done:
@@ -50,7 +50,8 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
                     each of the inner ndarrays represents one of pressure (P), temperature (T), or molality (X)
                     and must be in the same order and units described in the notes for the gibbsSp parameter
                     Additionally, each dimension must be sorted from low to high values.
-    :param M: float with molecular weight of solute (kg/mol)
+    :param MWv:     float with molecular weight of solvent (kg/mol).  Defaults to molecular weight of water
+    :param MWu:     float with molecular weight of solute (kg/mol).
     :param failOnExtrapolate:   True if you want an error to appear if PTX includes values that fall outside the knot
                     sequence of gibbsSp.  If False, throws a warning rather than an error, and
                     proceeds with the calculation.
@@ -77,7 +78,7 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
                         V           returns unit volume in m^3/kg
                         -------------------------------------------- below this line, require PTX spline and non-zero M
                         mus         returns solute chemical potential in J/mol
-                        muw         returns water chemical potential in J/mol
+                        muw         returns solvent chemical potential in J/mol
                         Vm          returns partial molar volume in m^3/mol
                         Cpm         returns partial molar heat capacity in J/kg/K/mol
                         Cpa         returns apparent heat capacity J/Kg/K/mol
@@ -93,12 +94,12 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
     if origSpec and addedTDVs:  # the original spec was not empty and more tdvs were added
         print('NOTE: The requested thermodynamic variables depend on the following variables, which will be '+
               'included as properties of the output object: '+pformat(addedTDVs))
-    _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate)
+    _checkInputs(gibbsSp, MWu, dimCt, tdvSpec, PTX, failOnExtrapolate)
 
     tdvout = createThermodynamicStatesObj(dimCt, tdvSpec, PTX)
     derivs = getDerivatives(gibbsSp, tdvout.PTX, dimCt, tdvSpec, verbose)
     gPTX = _getGriddedPTX(tdvSpec, tdvout.PTX, verbose)
-    f = _getVolWaterInVolSlnConversion(M, tdvout.PTX)
+    f = _getVolSolventInVolSlnConversion(MWu, tdvout.PTX)
 
     # calculate thermodynamic variables and store in appropriate fields in tdvout
     completedTDVs = set()     # list of completed tdvs
@@ -111,7 +112,8 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
             args = dict()
             if t.reqDerivs: args[t.parmderivs] = derivs
             if t.reqGrid:   args[t.parmgrid] = gPTX
-            if t.reqM:      args[t.parmM] = M
+            if t.reqMWv:    args[t.parmMWv] = MWv
+            if t.reqMWu:    args[t.parmMWu] = MWu
             if t.reqTDV:    args[t.parmtdv] = tdvout
             if t.reqSpline: args[t.parmspline] = gibbsSp
             if t.reqPTX:    args[t.parmptx] = tdvout.PTX    # use the PTX from tdvout, which may have 0 X added
@@ -127,7 +129,7 @@ def evalSolutionGibbs(gibbsSp, PTX, M=0, failOnExtrapolate=True, verbose=False, 
     return tdvout
 
 
-def _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate):
+def _checkInputs(gibbsSp, MWu, dimCt, tdvSpec, PTX, failOnExtrapolate):
     """ Checks error conditions before performing any calculations, throwing an error if anything doesn't match up
       - Ensures that a PTX spline includes 0 concentrations
       - Ensures necessary data is available for requested statevars
@@ -145,10 +147,11 @@ def _checkInputs(gibbsSp, M, dimCt, tdvSpec, PTX, failOnExtrapolate):
         raise ValueError('You cannot calculate ' + pformat([t.name for t in reqX]) + ' with a spline that does not ' +
                          'include concentration. Remove those statevars and all their dependencies, or supply a ' +
                          'spline that includes concentration.')
-    # make sure that M is provided if any tdvs that require M or f are requested
-    reqM = [t for t in tdvSpec if t.reqM or t.reqF]
-    if M == 0 and reqM:
-        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqM]) + ' without providing solute ' +
+    # make sure that MWv is provided if any tdvs that require MWv are requested
+    # make sure that MWu is provided if any tdvs that require MWu or f are requested
+    reqMWu = [t for t in tdvSpec if t.reqMWu or t.reqF]
+    if MWu == 0 and reqMWu:
+        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqMWu]) + ' without providing solute ' +
                          'molecular weight.  Remove those statevars and all their dependencies, or provide a ' +
                          'non-zero value for the M parameter.')
     # make sure that all the PTX values fall inside the knot ranges of the spline
@@ -282,11 +285,11 @@ def _getGriddedPTX(tdvSpec, PTX, verbose=False):
     return out
 
 
-def _getVolWaterInVolSlnConversion(M, PTX):
-    """ Dimensionless conversion factor for how much of the volume of 1 kg of solution is really just the water
+def _getVolSolventInVolSlnConversion(MWu, PTX):
+    """ Dimensionless conversion factor for how much of the volume of 1 kg of solution is really just the solvent
     :return:    f
     """
-    return 1 + M * PTX[iX]
+    return 1 + MWu * PTX[iX]
 
 
 def evalGibbs(gibbsSp, PTX):
@@ -352,14 +355,14 @@ def evalIsotropicBulkModulus(tdv):
     """
     :return:        Ks
     """
-    return tdv.rho * np.power(tdv.vel, 2) / 1e6
+    return tdv.rho * np.power(tdv.vel, 2) / 1e6 #  1e6 for MPa conversion
 
 
 def evalThermalExpansivity(derivs, tdv):
     """
     :return:        alpha
     """
-    return 1e-6 * derivs.dPT * tdv.rho  #  1e6 for MPa to Pa
+    return 1e-6 * derivs.dPT * tdv.rho  #  1e-6 for MPa conversion
 
 
 def evalInternalEnergy(gPTX, tdv):
@@ -367,21 +370,21 @@ def evalInternalEnergy(gPTX, tdv):
     :param gPTX:    gridded dimensions over which spline is being evaluated
     :return:        U
     """
-    return tdv.G - 1e6 * gPTX[iP] / tdv.rho + gPTX[iT] * tdv.S
+    return tdv.G - 1e6 * gPTX[iP] / tdv.rho + gPTX[iT] * tdv.S  #  1e6 for MPa conversion
 
 
-def evalSoluteChemicalPotential(M, f, derivs, tdv):
+def evalSoluteChemicalPotential(MWu, f, derivs, tdv):
     """
     :return:        mus
     """
-    return M * tdv.G + f * derivs.d1X
+    return MWu * tdv.G + f * derivs.d1X
 
 
-def evalWaterChemicalPotential(f, gPTX, derivs, tdv):
+def evalSolventChemicalPotential(MWv, f, gPTX, derivs, tdv):
     """
     :return:        muw
     """
-    return (tdv.G / Mwater) - (1 / Mwater * f * gPTX[iX] * derivs.d1X)
+    return (tdv.G * MWv) - (MWv * f * gPTX[iX] * derivs.d1X)
 
 
 def evalEnthalpy(gPTX, tdv):
@@ -391,18 +394,18 @@ def evalEnthalpy(gPTX, tdv):
     return tdv.U - gPTX[iT] * tdv.S
 
 
-def evalPartialMolarVolume(M, f, derivs):
+def evalPartialMolarVolume(MWu, f, derivs):
     """ Slope at a point of the V v. X graph
     :return:        Vm
     """
-    return (M * derivs.d1P) + (f * derivs.dPX)
+    return (MWu * derivs.d1P) + (f * derivs.dPX)
 
 
-def evalPartialMolarHeatCapacity(M, f, tdv, derivs, gPTX):
+def evalPartialMolarHeatCapacity(MWu, f, tdv, derivs, gPTX):
     """
     :return:    Cpm
     """
-    return M * tdv.Cp - f * derivs.d2T1X * gPTX[iT]
+    return MWu * tdv.Cp - f * derivs.d2T1X * gPTX[iT]
 
 
 def evalVolume(tdv):
@@ -416,16 +419,14 @@ def evalApparentSpecificHeat(f, gPTX, tdv):
     """
     :return:    Cpa
     """
-    #Cpa=(Cp.*f -repmat(squeeze(Cp(:,:,1)),1,1,length(m)))./mm;
     return (tdv.Cp * f - _get0XTdv(tdv, 'Cp')) / _getDividableBy(gPTX[iX])
 
 
 def evalApparentVolume(f, gPTX, tdv):
-    """ slope of a chord between pure water and a concentration on a V v. X graph
+    """ slope of a chord between pure solvent and a concentration on a V v. X graph
     :return:    Va
     """
-    # Va=1e6*(V.*f - repmat(squeeze(V(:,:,1)),1,1,length(m)))./mm;
-    return 1e6 * (tdv.V * f - _get0XTdv(tdv, 'V')) / _getDividableBy(gPTX[iX])
+    return 1e6 * (tdv.V * f - _get0XTdv(tdv, 'V')) / _getDividableBy(gPTX[iX]) # 1e6 for MPa conversion
 
 
 def _get0XTdv(tdv, prop):
@@ -439,20 +440,23 @@ def _getDividableBy(inp):
     return np.where(inp != 0, inp, eps)
 
 
-def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, parmgrid='gPTX', reqF=False, parmf='f',
-                reqDerivs=[], parmderivs='derivs', reqTDV=[], parmtdv='tdv', reqSpline=False, parmspline='gibbsSp',
-                reqPTX=False, parmptx='PTX', req0X=False):
+def _getTDVSpec(name, calcFn, reqX=False, reqMWv=False, parmMWv='MWv', reqMWu=False, parmMWu='MWu',
+                reqGrid=False, parmgrid='gPTX', reqF=False, parmf='f',
+                reqDerivs=[], parmderivs='derivs', reqTDV=[], parmtdv='tdv', reqSpline=False,
+                parmspline='gibbsSp', reqPTX=False, parmptx='PTX', req0X=False):
     """ Builds a TDVSpec namedtuple indicating what is required to calculate this particular thermodynamic variable
     :param name:        the name / symbol of the tdv (e.g., G, rho, alpha, muw)
     :param calcFn:      the name of the function used to calculate the tdv
     :param reqX:        True if DIRECTLY calculating the tdv requires concentration.  False otherwise
-    :param reqM:        True if DIRECTLY calculating the tdv requires solute molecular weight.  False otherwise
-    :param parmM:       the name of the parameter of calcFn used to pass in M if reqM
+    :param reqMWv:      True if DIRECTLY calculating the tdv requires solvent molecular weight.  False otherwise
+    :param parmMWv:     the name of the parameter of calcFn used to pass in solvent molecular weight if reqMWv
+    :param reqMWu:      True if DIRECTLY calculating the tdv requires solute molecular weight.  False otherwise
+    :param parmMWu:     the name of the parameter of calcFn used to pass in solute molecular weight if reqMWu
     :param reqGrid:     True if DIRECTLY calculating the tdv requires you to grid the PT[X] values.  False otherwise
     :param parmgrid:    the name of the parameter of calcFn used to pass in the gridded input dimensions if reqGrid
     :param reqF:        True if DIRECTLY calculating the tdv requires the conversion factor that gives the volume
-                        of water in a volume of solution
-    :param parmf:       the name of the parameter of calcFn used to pass in the vol water to vol solution conversion
+                        of solvent in a unit volume of solution
+    :param parmf:       the name of the parameter of calcFn used to pass in the vol solvent to vol solution conversion
                         factor
     :param reqDerivs:   A list of derivatives needed to DIRECTLY calculate the tdv
                         (e.g. for tdv Kp, this would be ['d1P','dP','d3P']
@@ -479,13 +483,14 @@ def _getTDVSpec(name, calcFn, reqX=False, reqM=False, parmM='M', reqGrid=False, 
     arginfo = getargvalues(currentframe())
     # build properties of the TDVSpec dynamically
     flds = arginfo.args
-    if not reqM:        flds.remove('parmM')
+    if not reqMWv:      flds.remove('parmMWv')
+    if not reqMWu:      flds.remove('parmMWu')
     if not reqGrid:     flds.remove('parmgrid')
     if not reqDerivs:   flds.remove('parmderivs')
     if not reqTDV:      flds.remove('parmtdv')
     if not reqSpline:   flds.remove('parmspline')
     if not reqPTX:      flds.remove('parmptx')
-    vals = {f:v for f, v in arginfo.locals.items() if f in flds}
+    vals = {f: v for f, v in arginfo.locals.items() if f in flds}
 
     tdvspec = namedtuple('TDVSpec', flds)
     return tdvspec(**vals)
@@ -511,11 +516,11 @@ def getSupportedThermodynamicVariables():
         _getTDVSpec('Kt', evalIsothermalBulkModulus, reqDerivs=['d1P', 'd2P']),
         _getTDVSpec('Kp', evalIsothermalBulkModulusWrtPressure, reqDerivs=['d1P', 'd2P', 'd3P']),
         _getTDVSpec('Ks', evalIsotropicBulkModulus, reqTDV=['rho', 'vel']),
-        _getTDVSpec('mus', evalSoluteChemicalPotential, reqM=True, reqF=True, reqDerivs=['d1X'], reqTDV=['G']),
-        _getTDVSpec('muw', evalWaterChemicalPotential, reqX=True, reqGrid=True, reqF=True, reqDerivs=['d1X'],
-                    reqTDV=['G']),
-        _getTDVSpec('Vm', evalPartialMolarVolume, reqM=True, reqF=True, reqDerivs=['d1P', 'dPX']),
-        _getTDVSpec('Cpm', evalPartialMolarHeatCapacity, reqM=True, reqGrid=True, reqF=True, reqDerivs=['d2T1X'],
+        _getTDVSpec('mus', evalSoluteChemicalPotential, reqMWu=True, reqF=True, reqDerivs=['d1X'], reqTDV=['G']),
+        _getTDVSpec('muw', evalSolventChemicalPotential, reqX=True, reqMWv=True, reqGrid=True, reqF=True,
+                    reqDerivs=['d1X'], reqTDV=['G']),
+        _getTDVSpec('Vm', evalPartialMolarVolume, reqMWu=True, reqF=True, reqDerivs=['d1P', 'dPX']),
+        _getTDVSpec('Cpm', evalPartialMolarHeatCapacity, reqMWu=True, reqGrid=True, reqF=True, reqDerivs=['d2T1X'],
                     reqTDV=['Cp']),
         _getTDVSpec('V', evalVolume, reqTDV=['rho']),
         _getTDVSpec('Cpa', evalApparentSpecificHeat, reqX=True, reqGrid=True, reqF=True, reqTDV=['Cp'], req0X=True),
@@ -589,7 +594,6 @@ def _printTiming(calcdesc, start, end):
 #########################################
 ## Constants
 #########################################
-Mwater = 1000 / 18.01528    # moles/kg for pure water
 iP = 0; iT = 1; iX = 2      # dimension indices
 defDer = 0                  # default derivative
 vmWarningFactor = 2         # warn the user when size of output would exceed vmWarningFactor times total virtual memory

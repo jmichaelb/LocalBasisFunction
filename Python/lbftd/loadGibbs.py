@@ -10,7 +10,7 @@ def loadGibbsSpline(splineFile, splineVar=None):
             For multi-solute solutions, the value for each species must be in teh same order as in MW
             such that nu[i] corresponds to MW[i + 1]
             Required only if calculating
-      - MW is the molecular weight of each species in the solution in /,
+      - MW is the molecular weight of each species in the solution in kg/mol,
             such that MW[0] is the molecular weight of the solvent
             and MW[1] is the molecular weight of solute A (corresponding to nu[0]),
                 MW[2] is the molecular weight of solute B (corresponding to nu[1]),
