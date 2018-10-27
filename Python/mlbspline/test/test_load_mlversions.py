@@ -31,6 +31,35 @@ class TestLoadSplineWithMatlabVersions(ut.TestCase):
     def test1dsplinev73(self):
         sp = load.loadSpline('spline1d_v73.mat')
         self.check1dspline(sp)
+    def check2dspline(self, sp):
+        self.assertEqual(sp['form'], 'B-', 'form not properly loaded')
+        self.assertEqual(sp['dim'], 1, 'dim not properly loaded')
+        self.assertTrue(np.array_equal(sp['number'], np.array([210, 203])), 'number not properly loaded')
+        self.assertTrue(np.array_equal(sp['order'], np.array([6, 6])), 'order not properly loaded')
+        self.assertEqual(sp['knots'].size, 2, 'knots not properly loaded')
+        self.assertEqual(sp['knots'][0].shape, (216, ), 'knots first dim size incorrect')
+        self.assertEqual(sp['knots'][1].shape, (209, ), 'knots second dim size incorrect')
+        # spot check a few values in knots
+        self.assertAlmostEqual(sp['knots'][0][0], 0., 15, 'first dim, first knot incorrect value')
+        self.assertAlmostEqual(sp['knots'][0][49], 1.850000000000007e+03, 12, 'first dim, fiftieth knot incorrect value')
+        self.assertAlmostEqual(sp['knots'][0][215], 10000., 15, 'first dim, last knot incorrect value')
+        self.assertEqual(sp['knots'][1][0], 240., 'second dim, first knot incorrect value')
+        self.assertEqual(sp['knots'][1][59], 520., 'second dim, sixtieth knot incorrect value')
+        self.assertEqual(sp['knots'][1][208], 1250., 'second dim, last knot incorrect value')
+        self.assertEqual(sp['coefs'].ndim, 2, 'coefs not properly loaded')
+        self.assertEqual(sp['coefs'].shape, (210, 203), 'coefs dim sizes incorrect')
+        # spot check a few coefs - precision is number of decimal points shown minus power of 10
+        self.assertAlmostEqual(sp['coefs'][0, 0], 1.178305489097509e+03, 12, 'coef value a not equal')
+        self.assertAlmostEqual(sp['coefs'][9, 9], 1.594732018089757e+03, 12, 'coef value b not equal')
+        self.assertAlmostEqual(sp['coefs'][76, 77], 3.825051421428625e+03, 12, 'coef value c not equal')
+        self.assertAlmostEqual(sp['coefs'][209, 202], 5.382233818477050e+03, 12, 'coef value d not equal')
+    def test2dsplinev7(self):
+        sp = load.loadSpline('spline2d_v7.mat')
+        self.check2dspline(sp)
+    def test2dsplinev73(self):
+        sp = load.loadSpline('spline2d_v73.mat')
+        self.check2dspline(sp)
+
 
 if __name__ == '__main__':
     ut.main()
