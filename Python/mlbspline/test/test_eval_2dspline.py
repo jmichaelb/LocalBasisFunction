@@ -17,8 +17,8 @@ class TestEval2DSpline(ut.TestCase):
         out = eval.evalMultivarSpline(sp, x)
         mlout = sio.loadmat('spline2d_out.mat')['sp2d_out']
         self.assertEqual(out.shape, mlout.shape, 'shapes not equal')
-        self.assertTrue(np.allclose(out, mlout, rtol=0, atol=1e-10), 'output not within absolute tolerances')
-        self.assertTrue(np.allclose(out, mlout, rtol=1e-10, atol=0), 'output not within relative tolerances')
+        self.assertTrue(np.allclose(out, mlout, rtol=0, atol=1e-11), 'output not within absolute tolerances')
+        self.assertTrue(np.allclose(out, mlout, rtol=1e-12, atol=0), 'output not within relative tolerances')
 
 if __name__ == '__main__':
     ut.main()
