@@ -51,7 +51,7 @@ def _stripNestingToFields(src):
 
 
 def _stripNestingToValue(src):
-    # automatically squeezes
+    # numpy already automatically squeezes
     while isinstance(src, np.ndarray) and src.shape[0] == 1:
         src = src[0]
     return src

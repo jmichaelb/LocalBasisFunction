@@ -1,11 +1,15 @@
 Tested in Python 3.7.0
+But targeted to 3.6 (Anaconda)
 
 Packages to install
-- `pip3 install --upgrade pip`
-- `pip3 install scipy` - automatically installs numpy
-- `pip3 install jupyter`  See also https://jupyter.readthedocs.io/en/latest/install.html
-- `pip3 install matplotlib`
-- `pip3 install psutil`
+
+If using Anaconda, replace `pip` with `conda`
+- `pip install --upgrade pip`
+- `pip install scipy` - automatically installs numpy
+- `pip install jupyter` - See also https://jupyter.readthedocs.io/en/latest/install.html
+- `pip install matplotlib`
+- `pip install psutil`
+- `pip install hdf5storage`
 
 You may need to repeat these steps whenever upgrading Python.
 
