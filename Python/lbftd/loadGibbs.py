@@ -30,18 +30,17 @@ def loadGibbsSpline(splineFile, splineVar=None):
     sp = load.getSplineDict(load._stripNestingToValue(raw['sp']))
     load.validateSpline(sp)
     MW = _getMW(raw)
-    if MW.size == 1:    # ignore nu and Go values if length of MW indicates a pure substance
-        nu = 0
-        Go = None
-    else:
-        nu = _getnu(raw)
-        Go = _getGo(raw)
-    return {
+    out = {
         'sp':   sp,
-        'MW':   MW,
-        'nu':   nu,
-        'Go':   Go
+        'MW':   MW
     }
+    if MW.size > 1:     #  only add nu and Go if dealing with a solution rather than a pure substance
+        out['nu'] = _getnu(raw)
+        try:
+            out['Go'] = _getGo(raw)
+        except ValueError:
+            pass
+    return out
 
 def _getMW(raw):
     try:
@@ -58,20 +57,19 @@ def _getMW(raw):
 
 
 def _getnu(raw):
-    pass
-    # nu = load._stripNestingToValue(raw['nu'])
-    # if not isinstance(nu, Number) or nu != int(nu):
-    #     raise ValueError('At least one value in nu is not an integer.')
-    # return int(nu)
+    # currently only supporting a single solute solution so this is just an integer
+    nu = load._stripNestingToValue(raw['nu'])
+    if not isinstance(nu, Number) or nu != int(nu):
+        raise ValueError('At least one value in nu is not an integer.')
+    return int(nu)
 
 
 def _getGo(raw):
-    pass
-    # Go = load._stripNestingToValue(raw['Go'])
-    # try:
-    #     Go = load.getSplineDict(Go)
-    #     load.validateSpline(Go)
-    # except:
-    #     raise ValueError('The Go spline is not in the right format.')
-    # return Go
+    Go = load._stripNestingToValue(raw['Go'])
+    try:
+        Go = load.getSplineDict(Go)
+        load.validateSpline(Go)
+    except:
+        raise ValueError('The Go spline is not in the right format.')
+    return Go
 
