@@ -13,7 +13,7 @@ from mlbspline.eval import evalMultivarSpline
 
 
 def evalSolutionGibbs(gibbsSp, PTX, MWv=18.01528e-3, MWu=None, failOnExtrapolate=True, verbose=False, *tdvSpec):
-    # TODO: add logging? possibly in stead of verbose
+    # TODO: add logging? possibly in lieu of verbose
     """ Calculates thermodynamic variables for solutions based on a spline giving Gibbs energy
     This currently only supports single-solute solutions.
 

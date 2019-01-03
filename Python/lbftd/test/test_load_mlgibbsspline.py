@@ -15,13 +15,11 @@ class TestEval1DSpline(ut.TestCase):
         self.assertTrue(np.array_equal(gsp['sp']['number'], np.array([29, 20, 14])))
         self.assertTrue(np.array_equal(gsp['MW'], np.array([0.01801528, 0.05844])))
         self.assertEqual(gsp['nu'], 2)
-        self.assertFalse('Go' in gsp)
     def test_gibbsload_2d(self):
         gsp = loadGibbs.loadGibbsSpline('gsp_puresubstance.mat')
         self.assertTrue(np.array_equal(gsp['sp']['number'], np.array([50, 40])))
         self.assertTrue(np.array_equal(gsp['MW'], np.array([0.01801528])))
         self.assertFalse('nu' in gsp)
-        self.assertFalse('Go' in gsp)
 
 
 if __name__ == '__main__':

@@ -6,7 +6,7 @@ from mlbspline import load
 
 def loadGibbsSpline(splineFile, splineVar=None):
     """Loads a Gibbs energy spline from .mat format file
-    A Gibbs energy spline should be a Matlab struct that includes *all* of the following fields:
+    A Gibbs energy spline should be a Matlab struct that includes the following fields:
       - sp is the main spline itself.  It must be a 2D (PT) or 3D (PTX) spline as outlined in
             mlbspline.eval.evalMultivarSpline
       - MW is a list of the molecular weights of each species in the solution, measured in kg/mol,
@@ -16,10 +16,6 @@ def loadGibbsSpline(splineFile, splineVar=None):
       - nu is the number of ions in solution for the solute.  All values must be positive integers.
             If MW.size == 1 (pure substance), the value will be ignored so the field can be absent --
             otherwise the field must be present and have a numeric value.
-      - Go is a Gibbs spline in T (K) only for 2-species solutions (solvent + solute) at 1 molal and 1 bar.
-            If MW.size == 1 (pure substance), the value will be ignored so the field can be absent --
-            otherwise the field must be present must be present but may be empty if no tdvs with req or if MW.size == 1 (pure substance)
-    (If you need to load a Gibbs spline that does not include all of these, use mlbspline.load.loadSpline) instead.)
 
     :param splineFile:  full or relative path to Matlab file
     :param splineVar:   variable to load from splineFile.
@@ -34,12 +30,8 @@ def loadGibbsSpline(splineFile, splineVar=None):
         'sp':   sp,
         'MW':   MW
     }
-    if MW.size > 1:     #  only add nu and Go if dealing with a solution rather than a pure substance
+    if MW.size > 1:     #  only add nu if dealing with a solution rather than a pure substance
         out['nu'] = _getnu(raw)
-        try:
-            out['Go'] = _getGo(raw)
-        except ValueError:
-            pass
     return out
 
 def _getMW(raw):
@@ -62,14 +54,4 @@ def _getnu(raw):
     if not isinstance(nu, Number) or nu != int(nu):
         raise ValueError('At least one value in nu is not an integer.')
     return int(nu)
-
-
-def _getGo(raw):
-    Go = load._stripNestingToValue(raw['Go'])
-    try:
-        Go = load.getSplineDict(Go)
-        load.validateSpline(Go)
-    except:
-        raise ValueError('The Go spline is not in the right format.')
-    return Go
 
