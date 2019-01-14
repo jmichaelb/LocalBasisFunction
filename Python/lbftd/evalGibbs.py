@@ -12,7 +12,7 @@ from psutil import virtual_memory
 from mlbspline.eval import evalMultivarSpline
 
 
-def evalSolutionGibbs(gibbsSp, PTX, MWv=18.01528e-3, MWu=None, failOnExtrapolate=True, verbose=False, *tdvSpec):
+def evalSolutionGibbs(gibbsSp, PTX, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnExtrapolate=True, verbose=False):
     # TODO: add logging? possibly in lieu of verbose
     """ Calculates thermodynamic variables for solutions based on a spline giving Gibbs energy
     This currently only supports single-solute solutions.
@@ -50,7 +50,7 @@ def evalSolutionGibbs(gibbsSp, PTX, MWv=18.01528e-3, MWu=None, failOnExtrapolate
                     each of the inner ndarrays represents one of pressure (P), temperature (T), or molality (X)
                     and must be in the same order and units described in the notes for the gibbsSp parameter
                     Additionally, each dimension must be sorted from low to high values.
-    :param MWv:     float with molecular weight of solvent (kg/mol).  Defaults to molecular weight of water
+    :param MWv:     float with molecular weight of solvent (kg/mol).  Defaults to molecular weight of water (7 sig figs)
     :param MWu:     float with molecular weight of solute (kg/mol).
     :param failOnExtrapolate:   True if you want an error to appear if PTX includes values that fall outside the knot
                     sequence of gibbsSp.  If False, throws a warning rather than an error, and
@@ -88,18 +88,19 @@ def evalSolutionGibbs(gibbsSp, PTX, MWv=18.01528e-3, MWu=None, failOnExtrapolate
                     the output will also include P, T, and X (if provided) properties
     """
     dimCt = gibbsSp['number'].size
+    # expand spec to add dependencies (or set to default spec if no spec given)
     origSpec = tdvSpec
     tdvSpec = expandTDVSpec(tdvSpec, dimCt)
     addedTDVs = [s.name for s in tdvSpec if s.name not in origSpec]
     if origSpec and addedTDVs:  # the original spec was not empty and more tdvs were added
         print('NOTE: The requested thermodynamic variables depend on the following variables, which will be '+
               'included as properties of the output object: '+pformat(addedTDVs))
-    _checkInputs(gibbsSp, MWu, dimCt, tdvSpec, PTX, failOnExtrapolate)
+    _checkInputs(gibbsSp, dimCt, tdvSpec, PTX, MWv, MWu, failOnExtrapolate)
 
     tdvout = createThermodynamicStatesObj(dimCt, tdvSpec, PTX)
     derivs = getDerivatives(gibbsSp, tdvout.PTX, dimCt, tdvSpec, verbose)
-    gPTX = _getGriddedPTX(tdvSpec, tdvout.PTX, verbose)
-    f = _getVolSolventInVolSlnConversion(MWu, tdvout.PTX)
+    gPTX = _getGriddedPTX(tdvSpec, tdvout.PTX, verbose) if any([tdv.reqGrid for tdv in tdvSpec]) else None
+    f = _getVolSolventInVolSlnConversion(MWu, tdvout.PTX) if any([tdv.reqF for tdv in tdvSpec]) else None
 
     # calculate thermodynamic variables and store in appropriate fields in tdvout
     completedTDVs = set()     # list of completed tdvs
@@ -129,38 +130,49 @@ def evalSolutionGibbs(gibbsSp, PTX, MWv=18.01528e-3, MWu=None, failOnExtrapolate
     return tdvout
 
 
-def _checkInputs(gibbsSp, MWu, dimCt, tdvSpec, PTX, failOnExtrapolate):
+def _checkInputs(gibbsSp, dimCt, tdvSpec, PTX, MWv, MWu, failOnExtrapolate):
     """ Checks error conditions before performing any calculations, throwing an error if anything doesn't match up
-      - Ensures that a PTX spline includes 0 concentrations
-      - Ensures necessary data is available for requested statevars
+      - Ensures necessary data is available for requested statevars (check req parameters for statevars)
       - Throws a warning (or error if failOnExtrapolate=True) if spline is being evaluated on values
         outside the range of its knots
       - Warns the user if the requested output would exceed vmWarningFactor times the amount of virtual memory
+
+      Note that the mlbspline.eval module performs additional checks (like dimension count mismatches
     """
     knotranges = [(k[0], k[-1]) for k in gibbsSp['knots']]
-    # if a PTX spline, make sure the X dimension starts with 0
-    if dimCt == 0 and knotranges[iX][0] != 0:
-        raise ValueError('The PTX spline does not include 0 concentrations.')
+    # if a PTX spline, make sure the spline's concentration dimension starts with 0 if any tdv has req0X=True
+    # Note that the evalGibbs functions elsewhere handle the case where PTX does not include 0 concentration.
+    req0X = [t for t in tdvSpec if t.req0X]
+    if dimCt == 3 and req0X and knotranges[iX][0] != 0:
+            raise ValueError('You cannot calculate ' + pformat([t.name for t in req0X]) + ' with a spline that does ' +
+                             'not include 0 concentration. Remove those statevars and all their dependencies, or ' +
+                             'supply a spline that includes 0 concentration.')
     # make sure that spline has 3 dims if tdvs using concentration or f are requested
-    reqX = [t for t in tdvSpec if t.reqX or t.reqF]
-    if dimCt == 2 and reqX:
-        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqX]) + ' with a spline that does not ' +
-                         'include concentration. Remove those statevars and all their dependencies, or supply a ' +
-                         'spline that includes concentration.')
-    # make sure that MWv is provided if any tdvs that require MWv are requested
-    # make sure that MWu is provided if any tdvs that require MWu or f are requested
-    reqMWu = [t for t in tdvSpec if t.reqMWu or t.reqF]
-    if MWu == 0 and reqMWu:
-        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqMWu]) + ' without providing solute ' +
-                         'molecular weight.  Remove those statevars and all their dependencies, or provide a ' +
-                         'non-zero value for the M parameter.')
+    reqF = [t for t in tdvSpec if t.reqF]
+    reqX = [t for t in tdvSpec if t.reqX]
+    if dimCt == 2 and (reqX or reqF):
+        raise ValueError('You cannot calculate ' + pformat(set([t.name for t in (reqF + reqX)])) + ' with a spline ' +
+                         'that does not include concentration. Remove those statevars and all their dependencies, ' +
+                         'or supply a spline that includes concentration.')
+    # make sure that solvent molecular weight is provided if any tdvs that require MWv are requested
+    reqMWv = [t for t in tdvSpec if t.reqMWv]
+    if (MWv == 0 or not MWv) and reqMWv:
+        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqMWv]) + ' without ' +
+                         'providing solvent molecular weight.  Remove those statevars and all their dependencies, or ' +
+                         'provide a valid value for the MWv parameter.')
+    # make sure that solute molecular weight is provided if any tdvs that require MWu or f are requested
+    reqMWu = [t for t in tdvSpec if t.reqMWu]
+    if (MWu == 0 or not MWu) and (reqMWu or reqF):
+        raise ValueError('You cannot calculate ' + pformat([t.name for t in set(reqMWu + reqF)]) + ' without ' +
+                         'providing solute molecular weight.  Remove those statevars and all their dependencies, or ' +
+                         'provide a valid value for the MWu parameter.')
     # make sure that all the PTX values fall inside the knot ranges of the spline
-    ptxranges = [(d[0],d[-1]) for d in PTX]         # since values are sorted, these are the min/max vals for each dim
+    ptxranges = [(d[0], d[-1]) for d in PTX]         # since values are sorted, these are the min/max vals for each dim
     hasValsOutsideKnotRange = lambda kr, dr: dr[0] < kr[0] or dr[1] > kr[1]
-    extrapolationDims =  [i for i in range(0,dimCt) if hasValsOutsideKnotRange(knotranges[i],ptxranges[i])]
+    extrapolationDims = [i for i in range(0, dimCt) if hasValsOutsideKnotRange(knotranges[i], ptxranges[i])]
     if extrapolationDims:
-        msg = ' '.join(['Dimensions',pformat(['P' if d==iP else ('T' if d==iT else 'X') for d in extrapolationDims]),
-                'contain values that fall outside the knot sequence for the given spline, ',
+        msg = ' '.join(['Dimensions',pformat({'P' if d==iP else ('T' if d==iT else 'X') for d in extrapolationDims}),
+                'contain values that fall outside the knot sequence for the given spline,',
                 'which will result in extrapolation, which may not produce meaningful values.'])
         if failOnExtrapolate:
             raise ValueError(msg)
@@ -216,7 +228,7 @@ def _needs0X(dimCt, PTX, tdvSpec):
 
     :return:    True if 0 needs to be added
     """
-    return dimCt == 3 and PTX[iX][0] != 0 and any([t for t in tdvSpec if t.req0X])
+    return dimCt == 3 and PTX[iX][0] != 0 and any([t.req0X for t in tdvSpec])
 
 
 def _remove0X(tdvout, origPTX):
@@ -292,7 +304,12 @@ def _getVolSolventInVolSlnConversion(MWu, PTX):
     return 1 + MWu * PTX[iX]
 
 
-def evalGibbs(gibbsSp, PTX):
+#########################################
+## TDV eval functions
+#########################################
+
+
+def evalGibbsEnergy(gibbsSp, PTX):
     """
     :return: G
     """
@@ -440,6 +457,11 @@ def _getDividableBy(inp):
     return np.where(inp != 0, inp, eps)
 
 
+#########################################
+## TDV setup
+#########################################
+
+
 def _getTDVSpec(name, calcFn, reqX=False, reqMWv=False, parmMWv='MWv', reqMWu=False, parmMWu='MWu',
                 reqGrid=False, parmgrid='gPTX', reqF=False, parmf='f',
                 reqDerivs=[], parmderivs='derivs', reqTDV=[], parmtdv='tdv', reqSpline=False,
@@ -504,7 +526,7 @@ def getSupportedThermodynamicVariables():
     :return: immutable iterable with the the full set of specs for thermodynamic variables supported by this module
     """
     out = tuple([
-        _getTDVSpec('G', evalGibbs, reqSpline=True, reqPTX=True),
+        _getTDVSpec('G', evalGibbsEnergy, reqSpline=True, reqPTX=True),
         _getTDVSpec('rho', evalDensity, reqDerivs=['d1P']),
         _getTDVSpec('vel', evalSoundSpeed, reqDerivs=['d1P', 'dPT', 'd2T', 'd2P']),
         _getTDVSpec('Cp', evalIsobaricSpecificHeat, reqGrid=True, reqDerivs=['d2T']),
@@ -604,6 +626,7 @@ derivatives = getSupportedDerivatives()
 derivativenames = {d.name for d in derivatives}
 
 statevars, statevarnames = getSupportedThermodynamicVariables()
+# [(sv.name, sv.calcFn.__name__[4:]) for sv in statevars]        # lists TDV symbols and names
 defTDVSpec2, defTDVSpec3 = _setDefaultTDVSpecs()
 
 

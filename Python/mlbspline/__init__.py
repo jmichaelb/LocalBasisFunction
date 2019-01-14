@@ -1,4 +1,4 @@
 # mlbspline/__init__.py
-__all__ = ["load", "eval", "evalGibbs"]
+__all__ = ["load", "eval"]
 
 
