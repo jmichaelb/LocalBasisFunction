@@ -59,7 +59,7 @@ def evalSolutionGibbs(gibbsSp, PTX, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
     :param tdvSpec: iterable indicating the thermodynamic variables to be calculated
                     elements can be either strings showing the names or the TDV objects from getSupportedMeasures
                     If not provided, this function will calculate the variables in defTDV2 for a PT spline,
-                    and to the union of variables in defTDV2 and defTDVSpec3 for a PTX spline.
+                    and those in statevars for a PTX spline.
                     Args can be any of the following strings, each representing a thermodynamic quantity
                     that can be calculated based on a Gibbs energy spline.
                     Any other args provided will result in an error.
@@ -185,7 +185,6 @@ def _checkInputs(gibbsSp, dimCt, tdvSpec, PTX, MWv, MWu, failOnExtrapolate):
     return
 
 
-# TODO: add robust set of tests for this
 def expandTDVSpec(tdvSpec, dimCt):
     """ add dependencies for requested thermodynamic variables or sets default tdvSpec if none provided
     derivatives are handled separately - see getDerivatives
@@ -195,19 +194,20 @@ def expandTDVSpec(tdvSpec, dimCt):
     :return:        an immutable iterable of TDV namedtuples that includes those specified by tdvSpec
                     and all their dependencies
     """
-    # check for completely unsupported statevars so no one has to evaluate twice because of a typo
-    if not set(tdvSpec).issubset(statevarnames):
-        raise ValueError('One or more unsupported statevars have been requested: ' +
-                         pformat([t.name for t in tdvSpec.difference(statevars)]))
-
+    # if no spec provided, use the default spec (based on # dims of the spline)
     if len(tdvSpec) == 0:
-        tdvSpec = list(defTDVSpec2)      # make mutable
         if dimCt == 3:
-            tdvSpec.extend(defTDVSpec3)
-    else:
-        # add thermodynamic variables on which requested ones depend
-        tdvSpec = _addTDVDependencies(tdvSpec)
+            tdvSpec = list(statevarnames)   # make mutable
+        else:
+            tdvSpec = [t.name for t in defTDVSpec2]
+    # TODO: try to get rid of this (horrible) next line
+    tdvSpec = tdvSpec if not isinstance(tdvSpec, str) else (tdvSpec,)
+    # check for completely unsupported statevars so no one has to evaluate twice because of a typo
+    unsupported = set(tdvSpec) - statevarnames
+    if unsupported:
+        raise ValueError('One or more unsupported statevars have been requested: ' + pformat(unsupported))
 
+    tdvSpec = _addTDVDependencies(tdvSpec)  # add thermodynamic variables on which requested ones depend
     return tdvSpec
 
 
@@ -599,12 +599,14 @@ def _addTDVDependencies(origTDVs):
     return tuple([m for m in statevars if m.name in otdvnames])
 
 
-def _setDefaultTDVSpecs():
-    # concentration required if the flag says it does or if it uses a concentration derivative
-    xreq = [m for m in statevars if m.reqX or [d for d in m.reqDerivs if 'X' in d]]
-    xreq = [r.name for r in _addTDVDependencies(xreq)]
+def _setDefaultPT_TDVSpec():
+    """ determines the limited TDVs that can be calculated for a 2-D (P and T only) spline
+    """
+    # concentration required if the flag says it does, if it uses F (which req concentration),
+    # or if it uses a concentration derivative
+    Xreq = [m for m in statevars if m.reqX or m.reqF or [d for d in m.reqDerivs if 'X' in d]]
     # return values should be immutable - use tuples as TDVSpec namedtuples are not hashable so set is not usable
-    return tuple([m for m in statevars if m.name not in xreq]), tuple([m for m in statevars if m.name in xreq])
+    return tuple([m for m in statevars if m not in Xreq])
 
 
 def _printTiming(calcdesc, start, end):
@@ -627,7 +629,7 @@ derivativenames = {d.name for d in derivatives}
 
 statevars, statevarnames = getSupportedThermodynamicVariables()
 # [(sv.name, sv.calcFn.__name__[4:]) for sv in statevars]        # lists TDV symbols and names
-defTDVSpec2, defTDVSpec3 = _setDefaultTDVSpecs()
+defTDVSpec2 = _setDefaultPT_TDVSpec()
 
 
 
