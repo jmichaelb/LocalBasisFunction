@@ -51,7 +51,8 @@ class TestEvalGibbsCheckInputs(ut.TestCase):
         gsp = lg.loadGibbsSpline('gsp_puresubstance.mat')
         P = np.arange(0, 5001, 100)
         T = np.arange(0, 601, 50)
-        with self.assertRaisesRegex(ValueError, 'Dimensions {\'P\', \'T\'} ' +
+        # no order imposed on list of failed dimensions so accommodate either order
+        with self.assertRaisesRegex(ValueError, 'Dimensions {\'[PT]\', \'[PT]\'} ' +
                 'contain values that fall outside the knot sequence for the given spline, '+
                 'which will result in extrapolation, which may not produce meaningful values.'):
             eg.evalSolutionGibbs(gsp['sp'], np.array([P, T]), 'G', failOnExtrapolate=True)
