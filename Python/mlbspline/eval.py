@@ -21,7 +21,7 @@ def evalMultivarSpline(spd, x, der=[]):
         der = [0] * dimCt # default to 0th derivative for all dimensions
 
     if x.size != dimCt:
-        raise ValueError("The dimensions of the evalution points do not match the dimensions of the spline.")
+        raise ValueError("The dimensions of the evaluation points do not match the dimensions of the spline.")
     if len(der) != dimCt:
         raise ValueError("The dimensions of the derivative directives do not match the dimensions of the spline.")
     if not all((isinstance(i,int) and i >= 0) for i in der):
