@@ -6,8 +6,8 @@ from warnings import warn
 import numpy as np
 from psutil import virtual_memory
 
-from lbftd import statevars #import getSupportedDerivatives, statevars
-from lbftd.statevars import iT, iP, iX, expandTDVSpec
+from lbftd import statevars
+from lbftd.statevars import iT, iP, iX
 from mlbspline.eval import evalMultivarSpline
 
 
@@ -21,24 +21,6 @@ def evalSolutionGibbs(gibbsSp, PTX, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
         With the exception of pressure, units are SI.  Pressure is in MPa rather than Pa.
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    For developers: to add a new thermodynamic variable (TDV), all of the following should be done:
-    NOTE: new variables cannot be named PTX, as that symbols are reserved for the input
-    You will need to read and understand the comments for getSupportedMeasures and _getTDVSpec
-    - create a short function to calculate the measure based on other values
-        such as gibbsSp, PTX, gPTX, derivs, tdvout, etc.
-        the procedure should be named with 'eval' + the FULL name for the measure - NOT the symbol / tdv flag
-        record the symbol / tdv flag as the return value in comments for the function
-        add only parameters required to calculate the measure
-        Be consistent with parameter names used in other functions or use the parm* parameters of _getTDVSpec
-        If you end up with an as-yet unused parameter, add it to _getTDVSpec (defaulting to OFF)
-        AND to the evaluation section of this function
-    - add the measure spec to getSupportedThermodynamicVariables -
-        when the comments say DIRECTLY, they mean only consider something a requirement if it is used in
-        the function built in the previous step
-        dependencies (including nested dependencies) will be handed through the reqDerivs and reqTDV parameters
-    - update the comments for param *tdvSpec with the name of the measure and its units
-        be sure to add it to the correct section of the comments (PT vs PTX spline, other parameters required, etc)
-        or create a new section if one is warranted
 
     :param gibbsSp: A B-spline  (in format given by loadSpline.loadMatSpline) for giving Gibbs energy (J/mg)
                     with dimensions pressure (MPa), temperature (K), and (optionally) molality (mol/kg), IN THAT ORDER.
@@ -49,39 +31,20 @@ def evalSolutionGibbs(gibbsSp, PTX, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
                     each of the inner ndarrays represents one of pressure (P), temperature (T), or molality (X)
                     and must be in the same order and units described in the notes for the gibbsSp parameter
                     Additionally, each dimension must be sorted from low to high values.
-    :param MWv:     float with molecular weight of solvent (kg/mol).  Defaults to molecular weight of water (7 sig figs)
+    :param MWv:     float with molecular weight of solvent (kg/mol).
+                    Defaults to molecular weight of water (7 sig figs)
     :param MWu:     float with molecular weight of solute (kg/mol).
     :param failOnExtrapolate:   True if you want an error to appear if PTX includes values that fall outside the knot
                     sequence of gibbsSp.  If False, throws a warning rather than an error, and
                     proceeds with the calculation.
     :param verbose: boolean indicating whether to print status updates, warnings, etc.
     :param tdvSpec: iterable indicating the thermodynamic variables to be calculated
-                    elements can be either strings showing the names or the TDV objects from getSupportedMeasures
-                    If not provided, this function will calculate the variables in defTDV2 for a PT spline,
-                    and those in statevars for a PTX spline.
-                    Args can be any of the following strings, each representing a thermodynamic quantity
-                    that can be calculated based on a Gibbs energy spline.
+                    elements can be either strings showing the names (full list at statevars.statevarnames)
+                    or TDV objects from statevars.statevars.
+                    If not provided, this function will calculate the variables in statevars.tdvsPTOnly for a PT spline,
+                    and those in statevars.statevars for a PTX spline.
                     Any other args provided will result in an error.
-                        G           returns Gibbs energy in J/kg
-                        rho         returns density in kg/m^3
-                        vel         returns sound speed in m/s
-                        Cp          returns isobaric specific heat in J/kg/K
-                        Cv          returns isochoric specific heat in J/kg/K
-                        alpha       returns thermal expansivity in 1/K
-                        U           returns internal energy in J/kg
-                        H           returns enthalpy in J/kg
-                        S           returns entropy in J/kg/K
-                        Kt          returns isothermal bulk modulus in MPa
-                        Kp          returns pressure derivatives of isothermal bulk modulus (dimensionless)
-                        Ks          returns isotropic bulk modulus in MPa
-                        V           returns unit volume in m^3/kg
-                        -------------------------------------------- below this line, require PTX spline and non-zero M
-                        mus         returns solute chemical potential in J/mol
-                        muw         returns solvent chemical potential in J/mol
-                        Vm          returns partial molar volume in m^3/mol
-                        Cpm         returns partial molar heat capacity in J/kg/K/mol
-                        Cpa         returns apparent heat capacity J/Kg/K/mol
-                        Va          returns apparent volume m^3/mol
+                    See the README for units.
     :return:        a named tuple with the requested thermodynamic variables as named properties
                     matching the statevars requested in the *tdvSpec parameter of this function
                     the output will also include P, T, and X (if provided) properties
@@ -89,7 +52,7 @@ def evalSolutionGibbs(gibbsSp, PTX, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
     dimCt = gibbsSp['number'].size
     # expand spec to add dependencies (or set to default spec if no spec given)
     origSpec = tdvSpec
-    tdvSpec = expandTDVSpec(tdvSpec, dimCt)
+    tdvSpec = statevars.expandTDVSpec(tdvSpec, dimCt)
     addedTDVs = [s.name for s in tdvSpec if s.name not in origSpec]
     if origSpec and addedTDVs:  # the original spec was not empty and more tdvs were added
         print('NOTE: The requested thermodynamic variables depend on the following variables, which will be '+

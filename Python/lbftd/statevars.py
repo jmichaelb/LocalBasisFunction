@@ -8,6 +8,14 @@ from numpy.lib.scimath import sqrt
 from mlbspline.eval import evalMultivarSpline
 
 
+'''
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Warning: units must be as specified in the README because some conversions are hardcoded.
+With the exception of pressure, units are SI.  Pressure is in MPa rather than Pa.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+'''
+
+
 #########################################
 ## TDV eval functions
 #########################################
@@ -164,7 +172,7 @@ def _getDividableBy(inp):
 ## Set up derivatives
 #########################################
 
-def getSupportedDerivatives():
+def _getSupportedDerivatives():
     """ Define a name for a derivative of Gibbs energy
     and the derivative order with respect to P, T, and X required to calculate it
     (if not provided, all default to defDer)
@@ -246,7 +254,7 @@ def _getTDVSpec(name, calcFn, reqX=False, reqMWv=False, parmMWv='MWv', reqMWu=Fa
     return tdvspec(**vals)
 
 
-def getSupportedThermodynamicVariables():
+def _getSupportedThermodynamicVariables():
     """ When adding new tdvs, you don't need to worry about adding them in any particular order -
         dependencies are handled elsewhere
         See also the comments for _getTDVSpec and evalSolutionGibbs
@@ -353,10 +361,10 @@ iT = 1; iP = 0; iX = 2      # dimension indices
 defDer = 0                  # default derivative
 
 derivSpec = namedtuple('DerivativeSpec', ['name', 'wrtP', 'wrtT', 'wrtX'])
-derivatives = getSupportedDerivatives()
+derivatives = _getSupportedDerivatives()
 derivativenames = {d.name for d in derivatives}
 
-statevars, statevarnames = getSupportedThermodynamicVariables()
+statevars, statevarnames = _getSupportedThermodynamicVariables()
 # [(sv.name, sv.calcFn.__name__[4:]) for sv in statevars]        # lists TDV symbols and names
 
 tdvsPTOnly = _getPTOnlyTDVSpec()
