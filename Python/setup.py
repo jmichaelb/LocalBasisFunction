@@ -5,7 +5,7 @@ setuptools.setup(
     version='0.1a1',
     author='pennythewho',
     author_email='pennythewho@gmail.com',
-    description='load and evaluate splines developed in MatLab -- for Gibbs energy splines, also calculates several '+
+    description='load and evaluate splines developed in MatLab -- for Gibbs energy splines, also calculates several ' +
                 'other thermodynamic variables for pure substances or single-solute solutions',
     url='https://github.com/jmichaelb/LocalBasisFunction/tree/master/Python',
     packages=['mlbspline', 'lbftd'],

@@ -12,12 +12,10 @@ Demo scripts may also require the following packages:
 - jupyter (see https://jupyter.readthedocs.io/en/latest/install.html)
 
 
+To install, use the following command (note the escaped ``&`` before ``subdirectory`` - this may not be necessary on Windows, but on that OS, the URL may 
+need to be enclosed by double quotes)
+
+``pip3 install git+https://github.com/jmichaelb/LocalBasisFunction.git@master/#egg=uw-highP-geophysics-tools\&subdirectory=Python``
 
 
-To get Python to recognize this package, you need to tell Python to look in this directory for packages.
-This can be accomplished in myriad ways.  For a more comprehensive explanation,
-see https://docs.python.org/3/tutorial/modules.html#the-module-search-path,
-https://docs.python.org/3/library/sys.html#sys.path, and https://docs.python.org/3/library/site.html#module-site.
-The simplest way is probably to do this is to navigate to the parent directory of mlbspline and
-execute the following command in Terminal (assuming you're running on a Mac): ``export PYTHONPATH=`pwd`:$PYTHONPATH``
-The main problem with this approach is that you must do it every time you open Terminal.  It is better to install
+
