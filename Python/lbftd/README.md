@@ -4,33 +4,33 @@ __**Warning: units must be as specified here because some conversions are hardco
 With the exception of pressure, units are SI. 
  - Pressure is in MPa (rather than the SI standard Pa).
  - Temperature is in K.
- - Concentration (molality) is in mol/kg.
+ - Concentration (molality) is in mol kg<sup>-1</sup>.
  
-Supported thermodynamic variables (TDVs) are of two types: those that require concentration (X) to calculate and those 
+Supported thermodynamic variables (TDVs) are of two types: those that require concentration (M) to calculate and those 
 that rely only on pressure (P) and temperature (T).
 
 These rely only on P and T:
-- _G_:  Gibbs energy in J/kg
-- _rho_: density in kg/m^3
-- _vel_: sound speed in m/s
-- _Cp_: isobaric specific heat in J/kg/K
-- _Cv_: isochoric specific heat in J/kg/K
-- _alpha_: thermal expansivity in 1/K
-- _U_: internal energy in J/kg
-- _H_: enthalpy in J/kg
-- _S_: entropy in J/kg/K
+- _G_:  Gibbs energy in J kg<sup>-1</sup>
+- _rho_: density in kg m<sup>-3</sup>
+- _vel_: sound speed in m s<sup>-1</sup>
+- _Cp_: isobaric specific heat in J kg<sup>-1</sup> K<sup>-1</sup>
+- _Cv_: isochoric specific heat in J kg<sup>-1</sup> K<sup>-1</sup>
+- _alpha_: thermal expansivity in K<sup>-1</sup>
+- _U_: internal energy in J kg<sup>-1</sup>
+- _H_: enthalpy in J kg<sup>-1</sup>
+- _S_: entropy in J kg<sup>-1</sup> K<sup>-1</sup>
 - _Kt_: isothermal bulk modulus in MPa
 - _Kp_: pressure derivatives of isothermal bulk modulus (dimensionless)
 - _Ks_: isotropic bulk modulus in MPa
-- _V_: unit volume in m^3/kg
+- _V_: unit volume in m<sup>3</sup> kg<sup>-1</sup>
 
-These rely on P,T, and X, and require a non-zero molecular weight to calculate.
-- _mus_: solute chemical potential in J/mol
-- _muw_: solvent chemical potential in J/mol
-- _Vm_: partial molar volume in m^3/mol
-- _Cpm_: partial molar heat capacity in J/kg/K/mol
-- _Cpa_: apparent heat capacity J/Kg/K/mol
-- _Va_: apparent volume m^3/mol
+These rely on P,T, and M, and some also require non-zero molecular weights (for solvent and solute) to calculate.
+- _mus_: solute chemical potential in J mol<sup>-1</sup>
+- _muw_: solvent chemical potential in J mol<sup>-1</sup>
+- _Vm_: partial molar volume in m<sup>3</sup> mol<sup>-1</sup>
+- _Cpm_: partial molar heat capacity in J kg<sup>-1</sup> K<sup>-1</sup> mol<sup>-1</sup>
+- _Cpa_: apparent heat capacity J kg<sup>-1</sup> K<sup>-1</sup> mol<sup>-1</sup>
+- _Va_: apparent volume m<sup>3</sup> mol<sup>-1</sup>
 
 
 

@@ -1,12 +1,13 @@
-These packages have been tested on OSX in Python 3.7.0, but are targeted to 3.6 (because at the time of writing, 
-that is the latest version supported by Anaconda).
+These packages have been tested on OSX in Python 3.7.  
+Although they are intended to be platform-independent, they have not been tested on other operating systems.
 
-You should already have the following packages installed and in your Python path
+
+The following packages are required:
 - scipy (also installs numpy)
 - hdf5storage
 - psutil
 
-Demo scripts may also require the following packages
+Demo scripts may also require the following packages:
 - matplotlib
 - jupyter (see https://jupyter.readthedocs.io/en/latest/install.html)
 
