@@ -8,7 +8,7 @@ setuptools.setup(
     description='load and evaluate splines developed in MatLab -- for Gibbs energy splines, also calculates several '+
                 'other thermodynamic variables for pure substances or single-solute solutions',
     url='https://github.com/jmichaelb/LocalBasisFunction/tree/master/Python',
-    packages=setuptools.find_packages(),
+    packages=['mlbspline', 'lbftd'],
     classifiers=[
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
