@@ -72,16 +72,7 @@ def evalSolutionGibbs(gibbsSp, PTM, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
         # but that are not in completedTDVs themselves (don't recalculate anything)
         tdvsToEval = tuple(t for t in tdvSpec if t.name not in completedTDVs and (not t.reqTDV or not t.reqTDV.difference(completedTDVs)))
         for t in tdvsToEval:
-            # build args for the calcFn
-            args = dict()
-            if t.reqDerivs: args[t.parmderivs] = derivs
-            if t.reqGrid:   args[t.parmgrid] = gPTM
-            if t.reqMWv:    args[t.parmMWv] = MWv
-            if t.reqMWu:    args[t.parmMWu] = MWu
-            if t.reqTDV:    args[t.parmtdv] = tdvout
-            if t.reqSpline: args[t.parmspline] = gibbsSp
-            if t.reqPTM:    args[t.parmptm] = tdvout.PTM    # use the PTM from tdvout, which may have 0 M added
-            if t.reqF:      args[t.parmf] = f
+            args = _buildEvalArgs(t, derivs, gPTM, MWv, MWu, tdvout, gibbsSp, f)
             start = time()
             setattr(tdvout, t.name, t.calcFn(**args))       # calculate the value and set it in the output
             end = time()
@@ -91,6 +82,18 @@ def evalSolutionGibbs(gibbsSp, PTM, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
     _remove0M(tdvout, PTM)
 
     return tdvout
+
+def _buildEvalArgs(tdv, derivs, gPTM, MWv, MWu, tdvout, gibbsSp, f):
+    args = dict()
+    if tdv.reqDerivs: args[tdv.parmderivs] = derivs
+    if tdv.reqGrid:   args[tdv.parmgrid] = gPTM
+    if tdv.reqMWv:    args[tdv.parmMWv] = MWv
+    if tdv.reqMWu:    args[tdv.parmMWu] = MWu
+    if tdv.reqTDV:    args[tdv.parmtdv] = tdvout
+    if tdv.reqSpline: args[tdv.parmspline] = gibbsSp
+    if tdv.reqPTM:    args[tdv.parmptm] = tdvout.PTM  # use the PTM from tdvout, which may have 0 M added
+    if tdv.reqF:      args[tdv.parmf] = f
+    return args
 
 
 def _checkInputs(gibbsSp, dimCt, tdvSpec, PTM, MWv, MWu, failOnExtrapolate):
