@@ -20,27 +20,27 @@ With the exception of pressure, units are SI.  Pressure is in MPa rather than Pa
 ## TDV eval functions
 #########################################
 
-def evalGibbsEnergy(gibbsSp, PTX):
+def evalGibbsEnergy(gibbsSp, PTM):
     """
     :return: G
     """
-    return evalMultivarSpline(gibbsSp, PTX)
+    return evalMultivarSpline(gibbsSp, PTM)
 
 
-def evalIsobaricSpecificHeat(gPTX, derivs):
+def evalIsobaricSpecificHeat(gPTM, derivs):
     """
     :return:        Cp
     """
-    return -1 * derivs.d2T * gPTX[iT]
+    return -1 * derivs.d2T * gPTM[iT]
 
 
-def evalIsochoricSpecificHeat(tdv, gPTX, derivs):
+def evalIsochoricSpecificHeat(tdv, gPTM, derivs):
     """
 
     :return:    Cv
     """
     #Cv= Cp + Tm.*dPT.^2./d2P;
-    return tdv.Cp + gPTX[iT] * np.power(derivs.dPT, 2) / derivs.d2P
+    return tdv.Cp + gPTM[iT] * np.power(derivs.dPT, 2) / derivs.d2P
 
 
 def evalEntropy(derivs):
@@ -93,47 +93,47 @@ def evalThermalExpansivity(derivs, tdv):
     return 1e-6 * derivs.dPT * tdv.rho  #  1e-6 for MPa conversion
 
 
-def evalInternalEnergy(gPTX, tdv):
+def evalInternalEnergy(gPTM, tdv):
     """
-    :param gPTX:    gridded dimensions over which spline is being evaluated
+    :param gPTM:    gridded dimensions over which spline is being evaluated
     :return:        U
     """
-    return tdv.G - 1e6 * gPTX[iP] / tdv.rho + gPTX[iT] * tdv.S  #  1e6 for MPa conversion
+    return tdv.G - 1e6 * gPTM[iP] / tdv.rho + gPTM[iT] * tdv.S  #  1e6 for MPa conversion
 
 
 def evalSoluteChemicalPotential(MWu, f, derivs, tdv):
     """
     :return:        mus
     """
-    return MWu * tdv.G + f * derivs.d1X
+    return MWu * tdv.G + f * derivs.d1M
 
 
-def evalSolventChemicalPotential(MWv, f, gPTX, derivs, tdv):
+def evalSolventChemicalPotential(MWv, f, gPTM, derivs, tdv):
     """
     :return:        muw
     """
-    return (tdv.G * MWv) - (MWv * f * gPTX[iX] * derivs.d1X)
+    return (tdv.G * MWv) - (MWv * f * gPTM[iM] * derivs.d1M)
 
 
-def evalEnthalpy(gPTX, tdv):
+def evalEnthalpy(gPTM, tdv):
     """
     :return:        H
     """
-    return tdv.U - gPTX[iT] * tdv.S
+    return tdv.U - gPTM[iT] * tdv.S
 
 
 def evalPartialMolarVolume(MWu, f, derivs):
-    """ Slope at a point of the V v. X graph
+    """ Slope at a point of the V v. M graph (volume vs molality)
     :return:        Vm
     """
-    return (MWu * derivs.d1P) + (f * derivs.dPX)
+    return (MWu * derivs.d1P) + (f * derivs.dPM)
 
 
-def evalPartialMolarHeatCapacity(MWu, f, tdv, derivs, gPTX):
+def evalPartialMolarHeatCapacity(MWu, f, tdv, derivs, gPTM):
     """
     :return:    Cpm
     """
-    return MWu * tdv.Cp - f * derivs.d2T1X * gPTX[iT]
+    return MWu * tdv.Cp - f * derivs.d2T1M * gPTM[iT]
 
 
 def evalVolume(tdv):
@@ -143,23 +143,23 @@ def evalVolume(tdv):
     return np.power(tdv.rho, -1)
 
 
-def evalApparentSpecificHeat(f, gPTX, tdv):
+def evalApparentSpecificHeat(f, gPTM, tdv):
     """
     :return:    Cpa
     """
-    return (tdv.Cp * f - _get0XTdv(tdv, 'Cp')) / _getDividableBy(gPTX[iX])
+    return (tdv.Cp * f - _get0MTdv(tdv, 'Cp')) / _getDividableBy(gPTM[iM])
 
 
-def evalApparentVolume(f, gPTX, tdv):
-    """ slope of a chord between pure solvent and a concentration on a V v. X graph
+def evalApparentVolume(f, gPTM, tdv):
+    """ slope of a chord between pure solvent and a concentration on a V v. M graph
     :return:    Va
     """
-    return 1e6 * (tdv.V * f - _get0XTdv(tdv, 'V')) / _getDividableBy(gPTX[iX]) # 1e6 for MPa conversion
+    return 1e6 * (tdv.V * f - _get0MTdv(tdv, 'V')) / _getDividableBy(gPTM[iM]) # 1e6 for MPa conversion
 
 
-def _get0XTdv(tdv, prop):
-    slc = [slice(None)] * (len(tdv.PTX))
-    slc[iX] = slice(0,1)
+def _get0MTdv(tdv, prop):
+    slc = [slice(None)] * (len(tdv.PTM))
+    slc[iM] = slice(0, 1)
     return getattr(tdv, prop)[tuple(slc)]
 
 
@@ -174,22 +174,22 @@ def _getDividableBy(inp):
 
 def _getSupportedDerivatives():
     """ Define a name for a derivative of Gibbs energy
-    and the derivative order with respect to P, T, and X required to calculate it
+    and the derivative order with respect to P, T, and M required to calculate it
     (if not provided, all default to defDer)
     These can then be used in a TDVSpec
 
     :return:    an immutable iterable containing a list of supported derivatives
     """
     return tuple([
-        derivSpec('d1P', wrtP=1, wrtT=defDer, wrtX=defDer),
-        derivSpec('d1T', wrtP=defDer, wrtT=1, wrtX=defDer),
-        derivSpec('d1X', wrtP=defDer, wrtT=defDer, wrtX=1),
-        derivSpec('dPT', wrtP=1, wrtT=1, wrtX=defDer),
-        derivSpec('dPX', wrtP=1, wrtT=defDer, wrtX=1),
-        derivSpec('d2P', wrtP=2, wrtT=defDer, wrtX=defDer),
-        derivSpec('d2T', wrtP=defDer, wrtT=2, wrtX=defDer),
-        derivSpec('d2T1X', wrtP=defDer, wrtT=2, wrtX=1),
-        derivSpec('d3P', wrtP=3,wrtT=defDer, wrtX=defDer)
+        derivSpec('d1P', wrtP=1, wrtT=defDer, wrtM=defDer),
+        derivSpec('d1T', wrtP=defDer, wrtT=1, wrtM=defDer),
+        derivSpec('d1M', wrtP=defDer, wrtT=defDer, wrtM=1),
+        derivSpec('dPT', wrtP=1, wrtT=1, wrtM=defDer),
+        derivSpec('dPM', wrtP=1, wrtT=defDer, wrtM=1),
+        derivSpec('d2P', wrtP=2, wrtT=defDer, wrtM=defDer),
+        derivSpec('d2T', wrtP=defDer, wrtT=2, wrtM=defDer),
+        derivSpec('d2T1M', wrtP=defDer, wrtT=2, wrtM=1),
+        derivSpec('d3P', wrtP=3,wrtT=defDer, wrtM=defDer)
     ])
 
 
@@ -197,19 +197,19 @@ def _getSupportedDerivatives():
 ## Set up thermodynamic variables (TDVs)
 #########################################
 
-def _getTDVSpec(name, calcFn, reqX=False, reqMWv=False, parmMWv='MWv', reqMWu=False, parmMWu='MWu',
-                reqGrid=False, parmgrid='gPTX', reqF=False, parmf='f',
+def _getTDVSpec(name, calcFn, reqM=False, reqMWv=False, parmMWv='MWv', reqMWu=False, parmMWu='MWu',
+                reqGrid=False, parmgrid='gPTM', reqF=False, parmf='f',
                 reqDerivs=[], parmderivs='derivs', reqTDV=[], parmtdv='tdv', reqSpline=False,
-                parmspline='gibbsSp', reqPTX=False, parmptx='PTX', req0X=False):
+                parmspline='gibbsSp', reqPTM=False, parmptm='PTM', req0M=False):
     """ Builds a TDVSpec namedtuple indicating what is required to calculate this particular thermodynamic variable
     :param name:        the name / symbol of the tdv (e.g., G, rho, alpha, muw)
     :param calcFn:      the name of the function used to calculate the tdv
-    :param reqX:        True if DIRECTLY calculating the tdv requires concentration.  False otherwise
+    :param reqM:        True if DIRECTLY calculating the tdv requires concentration.  False otherwise
     :param reqMWv:      True if DIRECTLY calculating the tdv requires solvent molecular weight.  False otherwise
     :param parmMWv:     the name of the parameter of calcFn used to pass in solvent molecular weight if reqMWv
     :param reqMWu:      True if DIRECTLY calculating the tdv requires solute molecular weight.  False otherwise
     :param parmMWu:     the name of the parameter of calcFn used to pass in solute molecular weight if reqMWu
-    :param reqGrid:     True if DIRECTLY calculating the tdv requires you to grid the PT[X] values.  False otherwise
+    :param reqGrid:     True if DIRECTLY calculating the tdv requires you to grid the PT[M] values.  False otherwise
     :param parmgrid:    the name of the parameter of calcFn used to pass in the gridded input dimensions if reqGrid
     :param reqF:        True if DIRECTLY calculating the tdv requires a conversion factor that gives the volume
                         of solvent in a unit volume of solution (this is calculated by
@@ -227,9 +227,9 @@ def _getTDVSpec(name, calcFn, reqX=False, reqMWv=False, parmMWv='MWv', reqMWu=Fa
     :param parmtdv:     the name of the parameter of calcFn used to pass in the tdvout if reqTDV
     :param reqSpline:   If True, calcFn needs the spline definition
     :param parmspline:  the name of the parameter of calcFn used to pass in the spline def if reqSpline
-    :param reqPTX:      If True, calcFn needs the original dimension input (parm PTX in evalSolutionGibbs) to run
-    :param parmptx:     the name of the parameter of calcFn used to pass in the original input if reqPTX
-    :param req0X:       if True, calcFn needs the 0 concentration for calculating apparent values
+    :param reqPTM:      If True, calcFn needs the original dimension input (parm PTM in evalSolutionGibbs) to run
+    :param parmptm:     the name of the parameter of calcFn used to pass in the original input if reqPTM
+    :param req0M:       if True, calcFn needs the 0 concentration for calculating apparent values
     :return:            a namedtuple giving the spec for the tdv
     """
     reqTDV = set(reqTDV); reqDerivs = set(reqDerivs)    # make these sets to enforce uniqueness and immutability
@@ -247,7 +247,7 @@ def _getTDVSpec(name, calcFn, reqX=False, reqMWv=False, parmMWv='MWv', reqMWu=Fa
     if not reqDerivs:   flds.remove('parmderivs')
     if not reqTDV:      flds.remove('parmtdv')
     if not reqSpline:   flds.remove('parmspline')
-    if not reqPTX:      flds.remove('parmptx')
+    if not reqPTM:      flds.remove('parmptm')
     vals = {f: v for f, v in arginfo.locals.items() if f in flds}
 
     tdvspec = namedtuple('TDVSpec', flds)
@@ -262,7 +262,7 @@ def _getSupportedThermodynamicVariables():
     :return: immutable iterable with the the full set of specs for supported thermodynamic variables
     """
     out = tuple([
-        _getTDVSpec('G', evalGibbsEnergy, reqSpline=True, reqPTX=True),
+        _getTDVSpec('G', evalGibbsEnergy, reqSpline=True, reqPTM=True),
         _getTDVSpec('rho', evalDensity, reqDerivs=['d1P']),
         _getTDVSpec('vel', evalSoundSpeed, reqDerivs=['d1P', 'dPT', 'd2T', 'd2P']),
         _getTDVSpec('Cp', evalIsobaricSpecificHeat, reqGrid=True, reqDerivs=['d2T']),
@@ -274,15 +274,15 @@ def _getSupportedThermodynamicVariables():
         _getTDVSpec('Kt', evalIsothermalBulkModulus, reqDerivs=['d1P', 'd2P']),
         _getTDVSpec('Kp', evalIsothermalBulkModulusWrtPressure, reqDerivs=['d1P', 'd2P', 'd3P']),
         _getTDVSpec('Ks', evalIsotropicBulkModulus, reqTDV=['rho', 'vel']),
-        _getTDVSpec('mus', evalSoluteChemicalPotential, reqMWu=True, reqF=True, reqDerivs=['d1X'], reqTDV=['G']),
-        _getTDVSpec('muw', evalSolventChemicalPotential, reqX=True, reqMWv=True, reqGrid=True, reqF=True,
-                    reqDerivs=['d1X'], reqTDV=['G']),
-        _getTDVSpec('Vm', evalPartialMolarVolume, reqMWu=True, reqF=True, reqDerivs=['d1P', 'dPX']),
-        _getTDVSpec('Cpm', evalPartialMolarHeatCapacity, reqMWu=True, reqGrid=True, reqF=True, reqDerivs=['d2T1X'],
+        _getTDVSpec('mus', evalSoluteChemicalPotential, reqMWu=True, reqF=True, reqDerivs=['d1M'], reqTDV=['G']),
+        _getTDVSpec('muw', evalSolventChemicalPotential, reqM=True, reqMWv=True, reqGrid=True, reqF=True,
+                    reqDerivs=['d1M'], reqTDV=['G']),
+        _getTDVSpec('Vm', evalPartialMolarVolume, reqMWu=True, reqF=True, reqDerivs=['d1P', 'dPM']),
+        _getTDVSpec('Cpm', evalPartialMolarHeatCapacity, reqMWu=True, reqGrid=True, reqF=True, reqDerivs=['d2T1M'],
                     reqTDV=['Cp']),
         _getTDVSpec('V', evalVolume, reqTDV=['rho']),
-        _getTDVSpec('Cpa', evalApparentSpecificHeat, reqX=True, reqGrid=True, reqF=True, reqTDV=['Cp'], req0X=True),
-        _getTDVSpec('Va', evalApparentVolume, reqX=True, reqGrid=True, reqF=True, reqTDV=['V'], req0X=True)
+        _getTDVSpec('Cpa', evalApparentSpecificHeat, reqM=True, reqGrid=True, reqF=True, reqTDV=['Cp'], req0M=True),
+        _getTDVSpec('Va', evalApparentVolume, reqM=True, reqGrid=True, reqF=True, reqTDV=['V'], req0M=True)
             ])
     # check that all reqTDVs are represented in the list
     outnames = frozenset([t.name for t in out])
@@ -297,9 +297,9 @@ def _getPTOnlyTDVSpec():
     """
     # concentration required if the flag says it does, if it uses F (which req concentration),
     # or if it uses a concentration derivative
-    Xreq = [m for m in statevars if m.reqX or m.reqF or [d for d in m.reqDerivs if 'X' in d]]
+    Mreq = [m for m in statevars if m.reqM or m.reqF or [d for d in m.reqDerivs if 'M' in d]]
     # return values should be immutable - use tuples as TDVSpec namedtuples are not hashable so set is not usable
-    return tuple([m for m in statevars if m not in Xreq])
+    return tuple([m for m in statevars if m not in Mreq])
 
 
 #########################################
@@ -357,10 +357,10 @@ def expandTDVSpec(tdvSpec, dimCt):
 #########################################
 ## Constants
 #########################################
-iT = 1; iP = 0; iX = 2      # dimension indices
+iT = 1; iP = 0; iM = 2      # dimension indices
 defDer = 0                  # default derivative
 
-derivSpec = namedtuple('DerivativeSpec', ['name', 'wrtP', 'wrtT', 'wrtX'])
+derivSpec = namedtuple('DerivativeSpec', ['name', 'wrtP', 'wrtT', 'wrtM'])
 derivatives = _getSupportedDerivatives()
 derivativenames = {d.name for d in derivatives}
 
