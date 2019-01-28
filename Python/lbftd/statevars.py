@@ -259,7 +259,7 @@ def _getSupportedThermodynamicVariables():
         dependencies are handled elsewhere
         See also the comments for _getTDVSpec and evalSolutionGibbs
 
-    :return: immutable iterable with the the full set of specs for thermodynamic variables supported by this module
+    :return: immutable iterable with the the full set of specs for supported thermodynamic variables
     """
     out = tuple([
         _getTDVSpec('G', evalGibbsEnergy, reqSpline=True, reqPTX=True),

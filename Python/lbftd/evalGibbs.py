@@ -6,9 +6,9 @@ from warnings import warn
 import numpy as np
 from psutil import virtual_memory
 
+from mlbspline.eval import evalMultivarSpline
 from lbftd import statevars
 from lbftd.statevars import iT, iP, iX
-from mlbspline.eval import evalMultivarSpline
 
 
 def evalSolutionGibbs(gibbsSp, PTX, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnExtrapolate=True, verbose=False):
@@ -151,7 +151,7 @@ def createThermodynamicStatesObj(dimCt, tdvSpec, PTX):
     flds = {t.name for t in tdvSpec} | {'PTX'}
     # copy PTX so if you add a 0 concentration, you affect only the version in the output var
     # so later you can compare the original PTX to the one in tdvout.PTX to see if you need to remove the 0 X
-    TDS = type('ThermodynamicStates', (object,), {f: (np.copy(PTX) if f == 'PTX' else None) for f in flds})
+    TDS = type('ThermodynamicStates', (object,), {fld: (np.copy(PTX) if fld == 'PTX' else None) for fld in flds})
     out = TDS()
     # prepend a 0 concentration if one is needed by any of the quantities being calculated
     if _needs0X(dimCt, PTX, tdvSpec):

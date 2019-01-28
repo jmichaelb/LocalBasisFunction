@@ -35,7 +35,8 @@ These rely on P,T, and X, and require a non-zero molecular weight to calculate.
 
 
 
-__For developers:__
+__**For developers**__:
+
 To add a new thermodynamic variable (TDV), all of the following should be done.  This list may not be comprehensive.
 -  New variables cannot be named PTX, P, T, or X, as those symbols are reserved for the input. 
     Read the comments for statevars.getSupportedMeasures and statevars._getTDVSpec.

@@ -18,18 +18,18 @@ class TestEvalGibbsMLSpline(ut.TestCase):
         mlout = load._stripNestingToFields(sio.loadmat('gsp2d_out.mat')['gsp2d_out'])
         valErrs = ''
         # check all values and output just one error for all of them
-        for f in vars(out).keys():
-            outfield = getattr(out, f)
-            if f not in mlout.dtype.fields:
-                warnings.warn('Matlab output is missing field ' + f)
+        for tdv in vars(out).keys():
+            outfield = getattr(out, tdv)
+            if tdv not in mlout.dtype.fields:
+                warnings.warn('Matlab output does not include tdv ' + tdv)
             else:
-                mloutfield = mlout[f]
-                self.assertEqual(outfield.shape, mloutfield.shape, f+' output not the same shape as MatLab output')
+                mloutfield = mlout[tdv]
+                self.assertEqual(outfield.shape, mloutfield.shape, tdv+' output not the same shape as MatLab output')
                 if not (np.allclose(outfield, mloutfield, rtol=relTolerance, atol=0)  # check both abs and rel differences
                         and np.allclose(outfield, mloutfield, rtol=0, atol=absTolerance)):
                     absDiffs = np.absolute(outfield - mloutfield)
                     relDiffs = absDiffs / np.absolute(mloutfield)
-                    valErrs = valErrs + 'Output for '+f+' has absolute differences as large as '+str(np.max(absDiffs)) +\
+                    valErrs = valErrs + 'Output for '+tdv+' has absolute differences as large as '+str(np.max(absDiffs)) +\
                               ' and relative differences as large as '+str(np.max(relDiffs))+'.\n'
         if valErrs:
             self.fail(valErrs)

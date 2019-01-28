@@ -1,7 +1,9 @@
 from math import isnan
 from numbers import Number
 from warnings import warn
+
 import numpy as np
+
 from mlbspline import load
 
 def loadGibbsSpline(splineFile, splineVar=None):

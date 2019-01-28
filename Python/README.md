@@ -1,17 +1,17 @@
-Tested in Python 3.7.0
-But targeted to 3.6 (Anaconda)
+These packages have been tested on OSX in Python 3.7.0, but are targeted to 3.6 (because at the time of writing, 
+that is the latest version supported by Anaconda).
 
-Packages to install
+You should already have the following packages installed and in your Python path
+- scipy (also installs numpy)
+- hdf5storage
+- psutil
 
-If using Anaconda, replace `pip` with `conda`
-- `pip install --upgrade pip`
-- `pip install scipy` - automatically installs numpy
-- `pip install jupyter` - See also https://jupyter.readthedocs.io/en/latest/install.html
-- `pip install matplotlib`
-- `pip install psutil`
-- `pip install hdf5storage`
+Demo scripts may also require the following packages
+- matplotlib
+- jupyter (see https://jupyter.readthedocs.io/en/latest/install.html)
 
-You may need to repeat these steps whenever upgrading Python.
+
+
 
 To get Python to recognize this package, you need to tell Python to look in this directory for packages.
 This can be accomplished in myriad ways.  For a more comprehensive explanation,
