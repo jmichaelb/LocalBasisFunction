@@ -25,9 +25,8 @@ class TestEval1DSpline(ut.TestCase):
                       ' and relative differences as large as ' + str(np.max(relDiffs)) + '.\n')
     def test1dsplineeval_singlepoint(self):
         out = eval.evalMultivarSpline(self.spline, (240,))
-        #self.assertEqual(out.shape, , 'shapes not equal')
-        out = out[0]
-        mlout = self.mlout[0]
+        self.assertEqual(1, out.size, 'Output has too many values')
+        mlout = self.mlout[0]   # pick out just the upper left corner of the output
         self.assertTrue(np.allclose(out, mlout, rtol=0, atol=1e-11), 'output not within absolute tolerances')
         self.assertTrue(np.allclose(out, mlout, rtol=1e-12, atol=0), 'output not within relative tolerances')
 

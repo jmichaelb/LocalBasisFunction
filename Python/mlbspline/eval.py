@@ -8,13 +8,18 @@ def evalMultivarSpline(spd, x, der=[]):
     x and spd['coefs'] must have the same number of dimensions
 
     :param spd: a B-spline definition as given by load.loadSpline
-    :param x:   a Numpy n-D array with the points at which the spline should be evaluated
-                the number of dimensions must be same as in the spline (x.size == spd['number'].size)
+    :param x:   Either
+                    - a Numpy n-D array with the points at which the spline should be evaluated
+                    or
+                    - a tuple representing a single point at which the spline should be evaluated
+                Either way, the number of dimensions must be same as in the spline (i.e.,
+                len(x) == spd['number'].size).  Dimensions must be in the same order as in the spline.
     :param der: (optional) a list of the derivative levels for evaluation, with each value representing
                 the derivative for the dimension at the corresponding index in x
                 if provided, values must be non-negative integers, and
                 the number of dimensions must be the same as in the spline (len(der) == spd['number'].size)
-    :return:    a Numpy n-D array with the same shape as x, with the y values for the spline
+    :return:    a Numpy n-D array. If x is an ndarray, then output.shape == x.shape.
+                If x is a tuple, then output.shape == tuple(np.ones(len(x), np.int)).
     """
     dimCt = spd['number'].size          # size of dim coefs
     if len(der) == 0:
