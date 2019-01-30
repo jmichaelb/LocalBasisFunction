@@ -20,11 +20,11 @@ def evalMultivarSpline(spd, x, der=[]):
     if len(der) == 0:
         der = [0] * dimCt # default to 0th derivative for all dimensions
 
-    if x.size != dimCt:
+    if len(x) != dimCt:     # use len(x) because it works with both tuples and ndarrays
         raise ValueError("The dimensions of the evaluation points do not match the dimensions of the spline.")
     if len(der) != dimCt:
         raise ValueError("The dimensions of the derivative directives do not match the dimensions of the spline.")
-    if not all((isinstance(i,int) and i >= 0) for i in der):
+    if not all((isinstance(i, int) and i >= 0) for i in der):
         raise ValueError('At least one derivative directive is not a non-negative integer.')
 
     y = spd['coefs']
@@ -33,7 +33,7 @@ def evalMultivarSpline(spd, x, der=[]):
         xi = x[di]  # get x values for dimension being evaluated
         # wrap xi if necessary
         if not isinstance(xi, np.ndarray):
-            xi = np.array(xi)
+            xi = np.asarray([xi])
         tck = getNextSpline(di, dimCt, spd, y)
         y = np.array(splev(xi, tck, der=der[di]))
     # need to rearrange back to original order and shape
@@ -54,7 +54,7 @@ def getNextSpline(dimIdx, dimCt, spd, coefs):
     if li != dimIdx:
         coefs = np.moveaxis(coefs, li, 0)
     t = spd['knots'][dimIdx]
-    k = spd['order'][dimIdx] - 1
+    k = spd['order'][dimIdx] - 1    # scipy wants the degree, not the order (MatLab gives the orders)
     return [t, coefs, k]
 
 
