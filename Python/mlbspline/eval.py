@@ -39,13 +39,13 @@ def evalMultivarSpline(spd, x, der=[]):
         # wrap xi if necessary
         if not isinstance(xi, np.ndarray):
             xi = np.asarray([xi])
-        tck = getNextSpline(di, dimCt, spd, y)
+        tck = _getNextSpline(di, dimCt, spd, y)
         y = np.array(splev(xi, tck, der=der[di]))
     # need to rearrange back to original order and shape
-    return getNextSpline(-1, dimCt, spd, y)[1]
+    return _getNextSpline(-1, dimCt, spd, y)[1]
 
 
-def getNextSpline(dimIdx, dimCt, spd, coefs):
+def _getNextSpline(dimIdx, dimCt, spd, coefs):
     """ Get the tck (knots, coefs, and degree) for the next spline to be evaluated
 
     :param dimIdx:  The zero-based index of the dimension being evaluated

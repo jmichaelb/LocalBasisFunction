@@ -5,7 +5,7 @@ from mlbspline import load
 from lbftd import loadGibbs as lg, evalGibbs as eg
 
 
-class TestEvalGibbsMLSpline(ut.TestCase):
+class TestEvalGibbsPureSubstance(ut.TestCase):
     def setUp(self):
         warnings.simplefilter('ignore', category=ImportWarning)
     def tearDown(sThermodyelf):
