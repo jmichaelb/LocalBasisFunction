@@ -2,6 +2,7 @@ from datetime import datetime
 from pprint import pformat
 from time import time
 from warnings import warn
+from collections.abc import Iterable
 
 import numpy as np
 from psutil import virtual_memory
@@ -133,7 +134,10 @@ def _checkInputs(gibbsSp, dimCt, tdvSpec, PTM, MWv, MWu, failOnExtrapolate):
                          'providing solute molecular weight.  Remove those statevars and all their dependencies, or ' +
                          'provide a valid value for the MWu parameter.')
     # make sure that all the PTM values fall inside the knot ranges of the spline
-    ptmranges = [(d[0], d[-1]) for d in PTM]         # since values are sorted, these are the min/max vals for each dim
+    # for single point, PTM is a tuple - just report its min and max as the single value
+    # for a grid, PTM is an ndarray of sorted ndarrays, and so the min and max are the first and last elements
+    # TODO: make this less explictly dependent on data types
+    ptmranges = [(d[0], d[-1]) if isinstance(d, Iterable) else (d, d) for d in PTM]
     hasValsOutsideKnotRange = lambda kr, dr: dr[0] < kr[0] or dr[1] > kr[1]
     extrapolationDims = [i for i in range(0, dimCt) if hasValsOutsideKnotRange(knotranges[i], ptmranges[i])]
     if extrapolationDims:
@@ -145,7 +149,10 @@ def _checkInputs(gibbsSp, dimCt, tdvSpec, PTM, MWv, MWu, failOnExtrapolate):
         else:
             warn(msg)
     # warn the user if the calculation results will take more than some factor times total virtual memory
-    outputSize = (len(tdvSpec) + len(PTM)) * np.prod([len(d) for d in PTM]) * floatSizeBytes
+    # TODO: make this less explicitly dependent on data types
+    ptct = np.prod([len(d) if isinstance(d, Iterable) else 1 for d in PTM])       # the total number of points
+    # for each point, the output will include 1 value for the PTM point itself plus 1 for each tdv
+    outputSize = (len(tdvSpec) + 1) * ptct * floatSizeBytes
     if outputSize > virtual_memory().total * vmWarningFactor:
         warn('The projected output is more than {0} times the total virtual memory for this machine.'.format(vmWarningFactor))
     return
