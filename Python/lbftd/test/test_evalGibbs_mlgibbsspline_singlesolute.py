@@ -5,17 +5,18 @@ from mlbspline import load
 from lbftd import loadGibbs as lg, evalGibbs as eg
 
 
-class TestEvalGibbsPureSubstance(ut.TestCase):
+class TestEvalGibbsSingleSolute(ut.TestCase):
     def setUp(self):
         warnings.simplefilter('ignore', category=ImportWarning)
-        self.spline = lg.loadGibbsSpline('gsp_puresubstance.mat')
-        self.mlout = load._stripNestingToFields(sio.loadmat('gsp2d_out.mat')['gsp2d_out'])
+        self.spline = lg.loadGibbsSpline('gsp_singlesolute.mat', 'sp_NaCl')
+        self.mlout = load._stripNestingToFields(sio.loadmat('gsp3d_out.mat')['gsp3d_out'])
     def tearDown(sThermodyelf):
         pass
-    def test_evalgibbs_puresubstance_allmeasures(self):
-        P = np.arange(0, 3001, 200)
-        T = np.arange(0, 401, 50)
-        out = eg.evalSolutionGibbs(self.spline['sp'], np.array([P, T]), MWv=self.spline['MW'][0])
+    def test_evalgibbs_singlesolute_allmeasures(self):
+        P = np.arange(0.1, 8000, 200)
+        T = np.arange(239, 501, 50)
+        M = np.arange(0, 8, 2).astype(float)
+        out = eg.evalSolutionGibbs(self.spline['sp'], np.array([P, T, M]), MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
         valErrs = ''
         # check all values and output just one error for all of them
         for tdv in vars(out).keys():
@@ -33,8 +34,8 @@ class TestEvalGibbsPureSubstance(ut.TestCase):
                               ' and relative differences as large as '+str(np.max(relDiffs))+'.\n'
         if valErrs:
             self.fail(valErrs)
-    def test_evalgibbs_puresubstance_singlepoint(self):
-        out = eg.evalSolutionGibbs(self.spline['sp'], (0, 0), MWv=self.spline['MW'][0])
+    def test_evalgibbs_singlesolute_singlepoint(self):
+        out = eg.evalSolutionGibbs(self.spline['sp'], (0.1, 239, 0), MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
         valErrs = ''
         # check all values and output just one error for all of them
         for tdv in vars(out).keys():
