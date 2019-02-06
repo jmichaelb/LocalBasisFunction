@@ -19,5 +19,9 @@ Windows, but on that OS, the URL may instead need to be enclosed by double quote
 
 ``pip install git+https://github.com/jmichaelb/LocalBasisFunction.git@master#egg=uw-highP-geophysics-tools\&subdirectory=Python``
 
+If you need to uninstall, use 
+``pip uninstall uw-highP-geophysics-tools``
+
+
 
 
