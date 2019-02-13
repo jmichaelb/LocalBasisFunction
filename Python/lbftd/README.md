@@ -38,10 +38,10 @@ These rely on P,T, and M, and some also require non-zero molecular weights (for 
 __**For developers**__:
 
 To add a new thermodynamic variable (TDV), all of the following should be done.  This list may not be comprehensive.
--  New variables cannot be named PTX, P, T, or X, as those symbols are reserved for the input. 
+-  New variables cannot be named PTM, P, T, or M, as those symbols are reserved for the input. 
     Read the comments for statevars.getSupportedMeasures and statevars._getTDVSpec.
 - Create a short function in statevars to calculate the measure based on other values
-    such as gibbsSp, PTX, gPTX, derivs, tdvout, etc.  
+    such as gibbsSp, PTM, gPTM, derivs, tdvout, etc.  
     The procedure should be named with 'eval' + the FULL name for the measure - NOT the symbol / tdv flag.  
     Record the symbol / tdv flag as the return value in comments for the function.
     Add only parameters required to directly calculate the measure.
@@ -55,7 +55,7 @@ To add a new thermodynamic variable (TDV), all of the following should be done. 
     Dependencies (including nested dependencies) will be handled by the reqDerivs and reqTDV parameters.
     See statevars functions _addTDVDependencies and expandTDVspec, as well as evalGibbs.getDerivatives, for detail.
 - Update this README with the name of the measure *and its units*.
-    Be sure to add it to the correct section of the comments (PT vs PTX spline, other parameters required, etc)
+    Be sure to add it to the correct section of the comments (PT vs PTM spline, other parameters required, etc)
     or create a new section if one is warranted.
 - Add tests to make sure that the TDV spec still expands properly and that the values are calculated correctly.  
     The latter may require recalculating a spline in MatLab and comparing it with the output from that platform. 
