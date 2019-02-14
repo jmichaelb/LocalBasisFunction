@@ -33,6 +33,7 @@ These rely on P,T, and M, and some also require non-zero molecular weights (for 
 - _Va_: apparent volume m<sup>3</sup> mol<sup>-1</sup>
 
 
+See demo folder for examples.  
 
 
 __**For developers**__:
