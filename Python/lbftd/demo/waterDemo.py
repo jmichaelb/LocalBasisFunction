@@ -1,51 +1,56 @@
-from tkinter.filedialog import askopenfilename
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
 from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import cm
 from lbftd import statevars, loadGibbs as lg, evalGibbs as eg
 
-# fname = askopenfilename(defaultextension='.mat', title='Choose the spline to evaluate')
+# load and evaluate the spline
 water_spline = lg.loadGibbsSpline('water_demo_spline.mat')
 
 P = np.linspace(0.1, 1500, num=200)
 T = np.linspace(240, 500, num=200)
 # evaluate the spline at the requested P(ressure, in MPa) and T(emperature, in K)
-# requested thermodynamic state variables:
+# requested thermodynamic state variables
+# (see README for full list of available state vars or don't list any to get the full set):
 # - rho: density in kg m^-3
 # - Cp: isobaric specific heat in J kg^-1 K^-1
 # - Kt: isothermal bulk modulus in MPa
 # - alpha:  thermal expansivity in K-1
 tdstate = eg.evalSolutionGibbs(water_spline['sp'], np.array([P, T]), 'rho', 'Cp', 'Kt', 'alpha')
+# for full set of implemented statevars: eg.evalSolutionGibbs(water_spline['sp'], np.array([P, T]))
 
-
+# graph the output
+rcParams['axes.labelpad'] = 10 # add some padding to prevents axis labels from covering ticks
 fig = plt.figure()
 pP, pT = np.meshgrid(P, T)
 
 rho_ax = fig.add_subplot(221, projection='3d')
-rho_ax.set_xlabel('Pressure ($MPa$)',labelpad=20)
-rho_ax.set_ylabel('Temperature ($K$)',labelpad=20)
-rho_ax.set_zlabel('Density ($kg/m^3$)',labelpad=20)
+rho_ax.set_xlabel('Pressure ($MPa$)')
+rho_ax.set_ylabel('Temperature ($K$)')
+rho_ax.set_zlabel('Density ($kg\: m^{-3}$)')  # use LaTex coding in labels
 rho_surf = rho_ax.plot_surface(pP, pT, tdstate.rho)
 rho_ax.invert_yaxis()
 
 cp_ax = fig.add_subplot(222, projection='3d')
-cp_ax.set_xlabel('Pressure ($MPa$)',labelpad=20)
-cp_ax.set_ylabel('Temperature ($K$)',labelpad=20)
-cp_ax.set_zlabel('Specific Heat ($J/kg \cdot K$)',labelpad=20)
-rho_surf = cp_ax.plot_surface(pP, pT, tdstate.Cp)
+cp_ax.set_xlabel('Pressure ($MPa$)')
+cp_ax.set_ylabel('Temperature ($K$)')
+cp_ax.set_zlabel('Specific Heat ($J\: kg^{-1}\: K^{-1}$)')
+cp_surf = cp_ax.plot_surface(pP, pT, tdstate.Cp)
+cp_ax.invert_yaxis()
 
 kt_ax = fig.add_subplot(223, projection='3d')
-kt_ax.set_xlabel('Pressure ($MPa$)',labelpad=20)
-kt_ax.set_ylabel('Temperature ($K$)',labelpad=20)
-kt_ax.set_zlabel('Isothermal Bulk Modulus ($MPa$)',labelpad=20)
+kt_ax.set_xlabel('Pressure ($MPa$)')
+kt_ax.set_ylabel('Temperature ($K$)')
+kt_ax.set_zlabel('Isothermal Bulk Modulus ($MPa$)')
 kt_surf = kt_ax.plot_surface(pP, pT, tdstate.Kt)
+kt_ax.invert_yaxis()
 
 alpha_ax = fig.add_subplot(224, projection='3d')
-alpha_ax.set_xlabel('Pressure ($MPa$)',labelpad=20)
-alpha_ax.set_ylabel('Temperature ($K$)',labelpad=20)
-alpha_ax.set_zlabel('Thermal Expansivity ($K^{-1}$)',labelpad=20)
+alpha_ax.set_xlabel('Pressure ($MPa$)')
+alpha_ax.set_ylabel('Temperature ($K$)')
+alpha_ax.set_zlabel('Thermal Expansivity ($K^{-1}$)')
 alpha_surf = alpha_ax.plot_surface(pP, pT, tdstate.alpha)
+alpha_ax.invert_yaxis()
 
 plt.show()
 
