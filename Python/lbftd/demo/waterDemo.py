@@ -5,7 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from lbftd import statevars, loadGibbs as lg, evalGibbs as eg
 
 # load and evaluate the spline
-water_spline = lg.loadGibbsSpline('water_demo_spline.mat')
+water_spline = lg.loadGibbsSpline('water_demo_iapws97.mat')
 
 P = np.linspace(0.1, 1500, num=200)
 T = np.linspace(240, 500, num=200)
