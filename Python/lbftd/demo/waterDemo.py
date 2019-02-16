@@ -5,7 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from lbftd import statevars, loadGibbs as lg, evalGibbs as eg
 
 # load and evaluate the spline
-water_spline = lg.loadGibbsSpline('water_demo_iapws97.mat')
+water_spline = lg.loadGibbsSpline('water_demo_iapws95.mat')
 
 P = np.linspace(0.1, 1500, num=200)
 T = np.linspace(240, 500, num=200)
@@ -44,6 +44,8 @@ kt_ax.set_ylabel('Temperature ($K$)')
 kt_ax.set_zlabel('Isothermal Bulk Modulus ($MPa$)')
 kt_surf = kt_ax.plot_surface(pP, pT, tdstate.Kt)
 kt_ax.invert_yaxis()
+# IAPWS has spike for this state var.  Limit the range of z-values shown
+kt_ax.set_zlim3d(-2000, 10000)
 
 alpha_ax = fig.add_subplot(224, projection='3d')
 alpha_ax.set_xlabel('Pressure ($MPa$)')
