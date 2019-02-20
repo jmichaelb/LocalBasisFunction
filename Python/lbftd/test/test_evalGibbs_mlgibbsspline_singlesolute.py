@@ -34,6 +34,28 @@ class TestEvalGibbsSingleSolute(ut.TestCase):
                               ' and relative differences as large as '+str(np.max(relDiffs))+'.\n'
         if valErrs:
             self.fail(valErrs)
+    def test_evalgibbs_singlesolute_Cpa_no0M(self):
+        P = np.arange(0.1, 8000, 200)
+        T = np.arange(239, 501, 50)
+        M = np.arange(2, 8, 2).astype(float)
+        out = eg.evalSolutionGibbs(self.spline['sp'], np.array([P, T, M]), 'Cpa', MWv=self.spline['MW'][0],
+                                   MWu=self.spline['MW'][1])
+        valErrs = ''
+        for tdv in vars(out).keys():
+            outfield = getattr(out, tdv)
+            if tdv in self.mlout.dtype.fields:
+                mloutfield = self.mlout[tdv][:, :, 1:]   # get everything but the 0 concentration in the original output
+                self.assertEqual(outfield.shape, mloutfield.shape, tdv + ' output not the same shape as MatLab output')
+                if not (np.allclose(outfield, mloutfield, rtol=relTolerance, atol=0)  # check both abs & rel differences
+                        and np.allclose(outfield, mloutfield, rtol=0, atol=absTolerance)):
+                    absDiffs = np.absolute(outfield - mloutfield)
+                    relDiffs = absDiffs / np.absolute(mloutfield)
+                    valErrs = valErrs + 'Output for ' + tdv + ' has absolute differences as large as ' + str(
+                        np.max(absDiffs)) + \
+                              ' and relative differences as large as ' + str(np.max(relDiffs)) + '.\n'
+        if valErrs:
+            self.fail(valErrs)
+
     def test_evalgibbs_singlesolute_singlepoint(self):
         out = eg.evalSolutionGibbs(self.spline['sp'], (0.1, 239, 0), MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
         valErrs = ''
@@ -44,7 +66,7 @@ class TestEvalGibbsSingleSolute(ut.TestCase):
             if tdv not in self.mlout.dtype.fields:
                 warnings.warn('Matlab output does not include tdv ' + tdv)
             else:
-                mloutfield = self.mlout[tdv][0][0]
+                mloutfield = self.mlout[tdv][0][0][0]
                 self.assertEqual(1, outfield.size, tdv + ' output not the same shape as MatLab output')
                 if not (np.allclose(outfield, mloutfield, rtol=relTolerance,
                                     atol=0)  # check both abs and rel differences

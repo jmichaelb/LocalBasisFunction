@@ -62,9 +62,10 @@ def evalSolutionGibbs(gibbsSp, PTM, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
     _checkInputs(gibbsSp, dimCt, tdvSpec, PTM, MWv, MWu, failOnExtrapolate)
 
     tdvout = createThermodynamicStatesObj(dimCt, tdvSpec, PTM)
-    derivs = getDerivatives(gibbsSp, tdvout.PTM, dimCt, tdvSpec, verbose)
-    gPTM = _getGriddedPTM(tdvSpec, tdvout.PTM, verbose) if any([tdv.reqGrid for tdv in tdvSpec]) else None
-    f = _getVolSolventInVolSlnConversion(MWu, tdvout.PTM) if any([tdv.reqF for tdv in tdvSpec]) else None
+    PTM = _wrapPTM(PTM, dimCt, tdvSpec)
+    derivs = getDerivatives(gibbsSp, PTM, dimCt, tdvSpec, verbose)
+    gPTM = _getGriddedPTM(tdvSpec, PTM, verbose) if any([tdv.reqGrid for tdv in tdvSpec]) else None
+    f = _getVolSolventInVolSlnConversion(MWu, PTM) if any([tdv.reqF for tdv in tdvSpec]) else None
 
     # calculate thermodynamic variables and store in appropriate fields in tdvout
     completedTDVs = set()     # list of completed tdvs
@@ -73,7 +74,7 @@ def evalSolutionGibbs(gibbsSp, PTM, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
         # but that are not in completedTDVs themselves (don't recalculate anything)
         tdvsToEval = tuple(t for t in tdvSpec if t.name not in completedTDVs and (not t.reqTDV or not t.reqTDV.difference(completedTDVs)))
         for t in tdvsToEval:
-            args = _buildEvalArgs(t, derivs, gPTM, MWv, MWu, tdvout, gibbsSp, f)
+            args = _buildEvalArgs(t, derivs, PTM, gPTM, MWv, MWu, tdvout, gibbsSp, f)
             start = time()
             setattr(tdvout, t.name, t.calcFn(**args))       # calculate the value and set it in the output
             end = time()
@@ -84,7 +85,7 @@ def evalSolutionGibbs(gibbsSp, PTM, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
 
     return tdvout
 
-def _buildEvalArgs(tdv, derivs, gPTM, MWv, MWu, tdvout, gibbsSp, f):
+def _buildEvalArgs(tdv, derivs, PTM, gPTM, MWv, MWu, tdvout, gibbsSp, f):
     args = dict()
     if tdv.reqDerivs: args[tdv.parmderivs] = derivs
     if tdv.reqGrid:   args[tdv.parmgrid] = gPTM
@@ -92,7 +93,7 @@ def _buildEvalArgs(tdv, derivs, gPTM, MWv, MWu, tdvout, gibbsSp, f):
     if tdv.reqMWu:    args[tdv.parmMWu] = MWu
     if tdv.reqTDV:    args[tdv.parmtdv] = tdvout
     if tdv.reqSpline: args[tdv.parmspline] = gibbsSp
-    if tdv.reqPTM:    args[tdv.parmptm] = tdvout.PTM  # use the PTM from tdvout, which may have 0 M added
+    if tdv.reqPTM:    args[tdv.parmptm] = PTM
     if tdv.reqF:      args[tdv.parmf] = f
     return args
 
@@ -164,10 +165,27 @@ def createThermodynamicStatesObj(dimCt, tdvSpec, PTM):
     # so later you can compare the original PTM to the one in tdvout.PTM to see if you need to remove the 0 M
     TDS = type('ThermodynamicStates', (object,), {fld: (np.copy(PTM) if fld == 'PTM' else None) for fld in flds})
     out = TDS()
+    return out
+
+def _wrapPTM(origPTM, dimCt, tdvSpec):
+    ''' Wraps PTM in nested numpy ndarrays if it was originally a tuple
+    Also prepends a 0 concentration to the iM dimension if needed
+
+    :return:  PTM as nested arrays, possibly with introduced 0 M
+    '''
+    try:
+        foo = origPTM[iP][0]  # throws a TypeError if origPTM is a tuple
+        PTM = origPTM
+    except TypeError:
+        # wrap origPTM
+        PTM = np.empty(dimCt, np.object)
+        for i in np.arange(0, dimCt):
+            PTM[i] = np.empty((1,), float)
+            PTM[i][0] = origPTM[i]
     # prepend a 0 concentration if one is needed by any of the quantities being calculated
     if _needs0M(dimCt, PTM, tdvSpec):
-        out.PTM[iM] = np.insert(PTM[iM], 0, 0)
-    return out
+        PTM[iM] = np.insert(PTM[iM], 0, 0)
+    return PTM
 
 
 def _needs0M(dimCt, PTM, tdvSpec):
@@ -178,21 +196,26 @@ def _needs0M(dimCt, PTM, tdvSpec):
     return dimCt == 3 and PTM[iM][0] != 0 and any([t.req0M for t in tdvSpec])
 
 
-def _remove0M(tdvout, origPTM):
+def _remove0M(tdvout, wrappedPTM):
     """ If a 0 concentration was added, take it back out.
     NOTE: This method changes the value of tdvout without returning it.
 
-    :param tdvout:  The object with calculated thermodynamic properties
-    :param origPTM: The original input
+    :param tdvout:      The object with calculated thermodynamic properties
+                        tdvout.PTM is the original PTM input provided by the caller
+    :param wrappedPTM:  The wrapped PTM which may include
     """
-    if tdvout.PTM.size == 3 and tdvout.PTM[iM].size != origPTM[iM].size:
-        tdvout.PTM[iM] = np.delete(tdvout.PTM[iM], 0, 0)
-        # go through all calculated values and remove the first item from the M dimension
-        # TODO: figure out why PTM doesn't show up in vars
-        for p,v in vars(tdvout).items():
-            slc = [slice(None)] * len(tdvout.shape)
-            slc[iM] = slice(1, None)
-            setattr(tdvout, p, v[tuple(slc)])
+    if wrappedPTM.size == 3 and wrappedPTM[iM][0] == 0:
+        try:    # tdvout.PTM is either a tuple or another set of nested arrays
+            firstM = tdvout.PTM[iM][0]
+        except IndexError:
+            firstM = tdvout.PTM[iM]
+        if firstM != 0:  # this means the wrapped PTM had a 0 concentration prepended
+            # go through all calculated values and remove the first item from the M dimension
+            # TODO: figure out why PTM doesn't show up in vars
+            for p, v in vars(tdvout).items():
+                slc = [slice(None)] * len(v.shape)
+                slc[iM] = slice(1, None)
+                setattr(tdvout, p, v[tuple(slc)])
 
 
 def _createGibbsDerivativesClass(tdvSpec):

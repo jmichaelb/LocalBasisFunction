@@ -67,51 +67,57 @@ class TestEvalGibbsHelperFns(ut.TestCase):
     #########################################
     def test_buildEvalArgs_derivsCustomParm(self):
         tdv = _getTDVSpec('foo', self.evalFoo, reqDerivs=['d1P'], parmderivs='fooderivs')
-        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, gPTM=None, derivs='foo', f=None, tdvout=None)
+        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, PTM=None, gPTM=None, derivs='foo', f=None,
+                                    tdvout=None)
         self.assertEqual(1, len(fooargs))
         self.assertFalse('derivs' in fooargs)
         self.assertTrue(fooargs['fooderivs'] == 'foo')
     def test_buildEvalArgs_gridCustomParm(self):
         tdv = _getTDVSpec('foo', self.evalFoo, reqGrid=True, parmgrid='foogrid')
-        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, gPTM='foo', derivs=None, f=None, tdvout=None)
+        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, PTM=None, gPTM='foo', derivs=None, f=None,
+                                    tdvout=None)
         self.assertEqual(1, len(fooargs))
         self.assertFalse('gPTM' in fooargs)
         self.assertTrue(fooargs['foogrid'] == 'foo')
     def test_buildEvalArgs_MWvCustomParm(self):
         tdv = _getTDVSpec('foo', self.evalFoo, reqMWv=True, parmMWv='foomwv')
-        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv='foo', MWu=None, gPTM=None, derivs=None, f=None, tdvout=None)
+        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv='foo', MWu=None, PTM=None, gPTM=None, derivs=None, f=None,
+                                    tdvout=None)
         self.assertEqual(1, len(fooargs))
         self.assertFalse('MWv' in fooargs)
         self.assertTrue(fooargs['foomwv'] == 'foo')
     def test_buildEvalArgs_MWuCustomParm(self):
         tdv = _getTDVSpec('foo', self.evalFoo, reqMWu=True, parmMWu='foomwu')
-        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu='foo', gPTM=None, derivs=None, f=None, tdvout=None)
+        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu='foo', PTM=None, gPTM=None, derivs=None, f=None,
+                                    tdvout=None)
         self.assertEqual(1, len(fooargs))
         self.assertFalse('MWu' in fooargs)
         self.assertTrue(fooargs['foomwu'] == 'foo')
     def test_buildEvalArgs_TDVCustomParm(self):
         tdv = _getTDVSpec('foo', self.evalFoo, reqTDV=['a'], parmtdv='footdv')
-        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, gPTM=None, derivs=None, f=None, tdvout='foo')
+        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, PTM=None, gPTM=None, derivs=None, f=None,
+                                    tdvout='foo')
         self.assertEqual(1, len(fooargs))
         self.assertFalse('tdv' in fooargs)
         self.assertTrue(fooargs['footdv'] == 'foo')
     def test_buildEvalArgs_splineCustomParm(self):
         tdv = _getTDVSpec('foo', self.evalFoo, reqSpline=True, parmspline='foospline')
-        fooargs = eg._buildEvalArgs(tdv, gibbsSp='foo', MWv=None, MWu=None, gPTM=None, derivs=None, f=None, tdvout=None)
+        fooargs = eg._buildEvalArgs(tdv, gibbsSp='foo', MWv=None, MWu=None, PTM=None, gPTM=None, derivs=None, f=None,
+                                    tdvout=None)
         self.assertEqual(1, len(fooargs))
         self.assertFalse('gibbsSp' in fooargs)
         self.assertTrue(fooargs['foospline'] == 'foo')
     def test_buildEvalArgs_PTMCustomParm(self):
         tdv = _getTDVSpec('foo', self.evalFoo, reqPTM=True, parmptm='fooptm')
-        out = namedtuple('output', 'PTM')
-        out.PTM = 'foo'
-        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, gPTM=None, derivs=None, f=None, tdvout=out)
+        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, PTM='foo', gPTM=None, derivs=None, f=None,
+                                    tdvout=None)
         self.assertEqual(1, len(fooargs))
         self.assertFalse('PTM' in fooargs)
         self.assertTrue(fooargs['fooptm'] == 'foo')
     def test_buildEvalArgs_FCustomParm(self):
         tdv = _getTDVSpec('foo', self.evalFoo, reqF=True, parmf='foof')
-        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, gPTM=None, derivs=None, f='foo', tdvout=None)
+        fooargs = eg._buildEvalArgs(tdv, gibbsSp=None, MWv=None, MWu=None, PTM=None, gPTM=None, derivs=None, f='foo',
+                                    tdvout=None)
         self.assertEqual(1, len(fooargs))
         self.assertFalse('f' in fooargs)
         self.assertTrue(fooargs['foof'] == 'foo')
