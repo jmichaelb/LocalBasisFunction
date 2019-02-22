@@ -1,7 +1,7 @@
-function  [rho,vel,G,Cp,alpha,S,U,H,K,Kp,mask]=fnIAPWSval(input,sp)
+function  out=fnIAPWSval(input,sp)
 % function to return rho,vel, G, Cp, alpha K and Kp based on IAPWS  
 %  ALL MKS with P in MPa
-%    Usage: [rho,vel,G,Cp,alpha,S,U,H,K,Kp,mask]=fnIAPWSval(input)
+%    Usage: out=[rho,vel,G,Cp,alpha,S,U,H,K,Kp,mask]=fnIAPWSval(input)
 %          where input is either a npts by (2 or 3) matrix of scatter points in [P  T] or input is a cell of {P,T}  
 %                  P in MPa and T in K. 
 %           rho in kg/m^3, vel in m/s, G in J/Mg Cp in J/kg/K alpha in K^(-1)
@@ -12,9 +12,6 @@ function  [rho,vel,G,Cp,alpha,S,U,H,K,Kp,mask]=fnIAPWSval(input,sp)
 %  Preloading the spline and passing it in the function call saves about 0.2 s or more rather 
 %     than executing a load within this function
 %
-%  The file IAPWS_sp_strct contains both a b-form and pp-form
-%  representation.  They are equivalent but it takes about 0.5 s to convert
-%  between them so both forms are saved in IAPWS_sp_strct
 %  
 %  calculations on a grid of PT values is much faster than scatter point calculations
 %   
@@ -57,15 +54,18 @@ else                               % scattered data in columns use pp-form of sp
     d3P=fnval(fnder(sp,[3 0]),input')';
 end
 
-S=-d1T;
-rho=1e6*d1P.^(-1);  % 1e6 for MPa to Pa
-U=G-1e6*Pm./rho+Tm.*S;
-H=U-Tm.*S;
-Cp=-d2T.*Tm;
-vel=real(sqrt(d1P.^2./(dPT.^2./d2T - d2P))); % MPa-Pa units conversion cancels
-alpha=1e-6*dPT.*rho; % 1e6 for MPa to Pa
-K=-d1P./d2P;
-Kp=d1P.*d2P.^(-2).*d3P -1;
+out.S=-d1T;
+out.rho=1e6*d1P.^(-1);  % 1e6 for MPa to Pa
+out.G=G;
+out.U=G-1e6*Pm./out.rho+Tm.*out.S;
+out.H=out.U-Tm.*out.S;
+out.Cp=-d2T.*Tm;
+out.vel=real(sqrt(d1P.^2./(dPT.^2./d2T - d2P))); % MPa-Pa units conversion cancels
+out.alpha=1e-6*dPT.*out.rho; % 1e6 for MPa to Pa
+out.K=-d1P./d2P;
+out.Kp=d1P.*d2P.^(-2).*d3P -1;
+out.mask=mask;
+
 
 function mask=mk_mask_4_IAPWS(PT)
 if(iscell(PT))
@@ -91,12 +91,12 @@ PTmask=[300000 14000
     85000 4100
     73000 3000
     66000 2100
-    62000 1300
-    59000  873
-    32000   720
-    17000   720
-    13000  700
-    9800   630
+    62000 1600
+    59000  1400
+    32000   1000
+    17000   820
+    13000  650
+    9800   600
     5400 500
     2500 375
     1400 303
@@ -115,7 +115,7 @@ if cell_flg
         id= T<Tc;
         mask(i,id)=nan;
     end
-    id= Pm<40 & Tm>500;
+    id= Pm<50 & Tm>500;
     mask(id)=nan;
     id= Pm<100 & Tm>500 & Tm<900;
     mask(id)=nan;
@@ -125,7 +125,7 @@ else
     for i=1:nT
         Tc=interp1(PTmask(:,1),PTmask(:,2),P(i));
         if(T(i)<Tc),mask(i)=nan;end
-        if(P(i)<40 && T(i)>500),mask(i)=nan;end
+        if(P(i)<50 && T(i)>500),mask(i)=nan;end
         if(P(i)<100 && T(i)>500 && T(i)<900),mask(i)=nan;end
     end
 end
