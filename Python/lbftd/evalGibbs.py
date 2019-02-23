@@ -106,21 +106,44 @@ def _checkInputs(gibbsSp, dimCt, tdvSpec, PTM, MWv, MWu, failOnExtrapolate):
 
       Note that the mlbspline.eval module performs additional checks (like dimension count mismatches
     """
+    _checkSplineAndTdvs(gibbsSp, dimCt, tdvSpec)
+    _checkUserInput(gibbsSp, dimCt, tdvSpec, PTM, MWv, MWu, failOnExtrapolate)
+    _checkMemReq(tdvSpec, PTM)
+
+
+def _checkSplineAndTdvs(gibbsSp, dimCt, tdvSpec):
+    """ Checks the spline and requested tdvs to make sure they are compatible
+        Recognizes bad conditions before performing any calculations, throwing an error if anything doesn't match up
+        - if req0M=True for any tdv, spline must have a 0 concentration
+        - if reqF=True or reqM=True for any tdv, must be a 3d spline
+    """
     knotranges = [(k[0], k[-1]) for k in gibbsSp['knots']]
     # if a PTM spline, make sure the spline's concentration dimension starts with 0 if any tdv has req0M=True
     # Note that the evalGibbs functions elsewhere handle the case where PTM does not include 0 concentration.
     req0M = [t for t in tdvSpec if t.req0M]
     if dimCt == 3 and req0M and knotranges[iM][0] != 0:
-            raise ValueError('You cannot calculate ' + pformat([t.name for t in req0M]) + ' with a spline that does ' +
-                             'not include 0 concentration. Remove those statevars and all their dependencies, or ' +
-                             'supply a spline that includes 0 concentration.')
+        raise ValueError('You cannot calculate ' + pformat([t.name for t in req0M]) + ' with a spline that does ' +
+                         'not include 0 concentration. Remove those statevars and all their dependencies, or ' +
+                         'supply a spline that includes 0 concentration.')
     # make sure that spline has 3 dims if tdvs using concentration or f are requested
-    reqF = [t for t in tdvSpec if t.reqF]
-    reqM = [t for t in tdvSpec if t.reqM]
-    if dimCt == 2 and (reqM or reqF):
-        raise ValueError('You cannot calculate ' + pformat(set([t.name for t in (reqF + reqM)])) + ' with a spline ' +
+    reqM = [t for t in tdvSpec if t.reqF or t.reqM]
+    if dimCt == 2 and reqM:
+        raise ValueError('You cannot calculate ' + pformat(set([t.name for t in reqM])) + ' with a spline ' +
                          'that does not include concentration. Remove those statevars and all their dependencies, ' +
                          'or supply a spline that includes concentration.')
+    return
+
+
+def _checkUserInput(gibbsSp, dimCt, tdvSpec, PTM, MWu, MWv, failOnExtrapolate):
+    """ Compares the requested PTM regimes to the spline and requested vars
+        - if reqMWv=True for any tdv, a non-zero solvent molecular weight is given
+        - if reqMWu=True for any tdv, a non-zero solute moledular weight is given
+        - PTM values are within the ranges of the spline knots
+        - check that the number of points requested doesn't exceed the
+
+    :param PTM:
+    :return:
+    """
     # make sure that solvent molecular weight is provided if any tdvs that require MWv are requested
     reqMWv = [t for t in tdvSpec if t.reqMWv]
     if (MWv == 0 or not MWv) and reqMWv:
@@ -129,33 +152,43 @@ def _checkInputs(gibbsSp, dimCt, tdvSpec, PTM, MWv, MWu, failOnExtrapolate):
                          'provide a valid value for the MWv parameter.')
     # make sure that solute molecular weight is provided if any tdvs that require MWu or f are requested
     reqMWu = [t for t in tdvSpec if t.reqMWu]
-    if (MWu == 0 or not MWu) and (reqMWu or reqF):
-        raise ValueError('You cannot calculate ' + pformat([t.name for t in set(reqMWu + reqF)]) + ' without ' +
+    if (MWu == 0 or not MWu) and reqMWu:
+        raise ValueError('You cannot calculate ' + pformat([t.name for t in reqMWu]) + ' without ' +
                          'providing solute molecular weight.  Remove those statevars and all their dependencies, or ' +
                          'provide a valid value for the MWu parameter.')
     # make sure that all the PTM values fall inside the knot ranges of the spline
     # for single point, PTM is a tuple - just report its min and max as the single value
     # for a grid, PTM is an ndarray of sorted ndarrays, and so the min and max are the first and last elements
+    knotranges = [(k[0], k[-1]) for k in gibbsSp['knots']]
     # TODO: make this less explictly dependent on data types
     ptmranges = [(d[0], d[-1]) if isinstance(d, Iterable) else (d, d) for d in PTM]
     hasValsOutsideKnotRange = lambda kr, dr: dr[0] < kr[0] or dr[1] > kr[1]
     extrapolationDims = [i for i in range(0, dimCt) if hasValsOutsideKnotRange(knotranges[i], ptmranges[i])]
     if extrapolationDims:
-        msg = ' '.join(['Dimensions',pformat({'P' if d == iP else ('T' if d == iT else 'M') for d in extrapolationDims}),
-                'contain values that fall outside the knot sequence for the given spline,',
-                'which will result in extrapolation, which may not produce meaningful values.'])
+        msg = ' '.join(
+            ['Dimensions', pformat({'P' if d == iP else ('T' if d == iT else 'M') for d in extrapolationDims}),
+             'contain values that fall outside the knot sequence for the given spline,',
+             'which will result in extrapolation, which may not produce meaningful values.'])
         if failOnExtrapolate:
             raise ValueError(msg)
         else:
             warn(msg)
+    return
+
+
+def _checkMemReq(tdvSpec, PTM):
+    """ Check if the memory req by the number of data points
+    """
     # warn the user if the calculation results will take more than some factor times total virtual memory
     # TODO: make this less explicitly dependent on data types
-    ptct = np.prod([len(d) if isinstance(d, Iterable) else 1 for d in PTM])       # the total number of points
+    ptct = np.prod([len(d) if isinstance(d, Iterable) else 1 for d in PTM])  # the total number of points
     # for each point, the output will include 1 value for the PTM point itself plus 1 for each tdv
     outputSize = (len(tdvSpec) + 1) * ptct * floatSizeBytes
     if outputSize > virtual_memory().total * vmWarningFactor:
-        warn('The projected output is more than {0} times the total virtual memory for this machine.'.format(vmWarningFactor))
+        warn('The projected output is more than {0} times the total virtual memory for this machine.'.format(
+            vmWarningFactor))
     return
+
 
 
 def createThermodynamicStatesObj(dimCt, tdvSpec, PTM):

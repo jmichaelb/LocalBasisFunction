@@ -9,8 +9,8 @@ from lbftd import statevars, loadGibbs as lg, evalGibbs as eg
 # but modifies it above 1 GPa to better match DAC and shockwave data
 water_spline = lg.loadGibbsSpline('water_demo_iapws_modified.mat')
 
-P = np.linspace(0, 1000, num=200)       # pressure, in MPa
-T = np.linspace(200, 500, num=200)        # temperature, in K
+P = np.linspace(0, 2000, num=200)       # pressure, in MPa
+T = np.linspace(200, 1000, num=200)        # temperature, in K
 # requested thermodynamic state variables
 # (see README for full list of available state vars or don't list any to get the full set):
 # - rho: density in kg m^-3
@@ -31,7 +31,7 @@ rho_ax.set_ylabel('Temperature ($K$)')
 rho_ax.set_zlabel('Density ($kg\: m^{-3}$)')  # use LaTex coding in labels
 rho_surf = rho_ax.plot_surface(pP, pT, tdstate.rho)
 rho_ax.invert_yaxis()
-rho_ax.set_zlim3d(-3000, 10000)
+rho_ax.set_zlim3d(-5000, 10000)
 
 cp_ax = fig.add_subplot(222, projection='3d')
 cp_ax.set_xlabel('Pressure ($MPa$)')
