@@ -22,7 +22,6 @@ def evalSolutionGibbs(gibbsSp, PTM, *tdvSpec, MWv=18.01528e-3, MWu=None, failOnE
         With the exception of pressure, units are SI.  Pressure is in MPa rather than Pa.
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
     :param gibbsSp: A B-spline  (in format given by loadSpline.loadMatSpline) for giving Gibbs energy (J/mg)
                     with dimensions pressure (MPa), temperature (K), and (optionally) molality (mol/kg), in the
                     order defined by statevars.iP, iT, and iM.
@@ -174,9 +173,9 @@ def _wrapPTM(origPTM, dimCt, tdvSpec):
     :return:  PTM as nested arrays, possibly with introduced 0 M
     '''
     try:
-        foo = origPTM[iP][0]  # throws a TypeError if origPTM is a tuple
+        foo = origPTM[iP][0]  # throws an IndexError if origPTM is a tuple
         PTM = origPTM
-    except TypeError:
+    except IndexError:
         # wrap origPTM
         PTM = np.empty(dimCt, np.object)
         for i in np.arange(0, dimCt):

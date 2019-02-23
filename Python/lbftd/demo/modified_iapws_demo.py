@@ -1,17 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d import Axes3D     # even though this is not used directly, it is required to do 3d plots
 from lbftd import statevars, loadGibbs as lg, evalGibbs as eg
 
 # load and evaluate the spline
 # this is a high-pressure spline that starts with IAPWS 95 below 1 GPa
 # but modifies it above 1 GPa to better match DAC and shockwave data
-water_spline = lg.loadGibbsSpline('water_demo_spline.mat')
+water_spline = lg.loadGibbsSpline('water_demo_iapws_modified.mat')
 
-P = np.linspace(0, 1500, num=200)
-T = np.linspace(240, 500, num=200)
-# evaluate the spline at the requested P(ressure, in MPa) and T(emperature, in K)
+P = np.linspace(0, 1000, num=200)       # pressure, in MPa
+T = np.linspace(0, 500, num=200)        # temperature, in K
 # requested thermodynamic state variables
 # (see README for full list of available state vars or don't list any to get the full set):
 # - rho: density in kg m^-3
@@ -46,6 +45,8 @@ kt_ax.set_ylabel('Temperature ($K$)')
 kt_ax.set_zlabel('Isothermal Bulk Modulus ($MPa$)')
 kt_surf = kt_ax.plot_surface(pP, pT, tdstate.Kt)
 kt_ax.invert_yaxis()
+# IAPWS has spike for this state var.  Limit the range of z-values shown
+kt_ax.set_zlim3d(-2000, 10000)
 
 alpha_ax = fig.add_subplot(224, projection='3d')
 alpha_ax.set_xlabel('Pressure ($MPa$)')

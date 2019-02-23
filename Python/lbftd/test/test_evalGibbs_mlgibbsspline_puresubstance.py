@@ -10,12 +10,12 @@ class TestEvalGibbsPureSubstance(ut.TestCase):
         warnings.simplefilter('ignore', category=ImportWarning)
         self.spline = lg.loadGibbsSpline('gsp_puresubstance.mat')
         self.mlout = load._stripNestingToFields(sio.loadmat('gsp2d_out.mat')['gsp2d_out'])
+        self.P = np.arange(0, 3001, 200).astype(float)
+        self.T = np.arange(0, 401, 50).astype(float)
     def tearDown(sThermodyelf):
         pass
     def test_evalgibbs_puresubstance_allmeasures(self):
-        P = np.arange(0, 3001, 200)
-        T = np.arange(0, 401, 50)
-        out = eg.evalSolutionGibbs(self.spline['sp'], np.array([P, T]), MWv=self.spline['MW'][0])
+        out = eg.evalSolutionGibbs(self.spline['sp'], np.array([self.P, self.T]), MWv=self.spline['MW'][0])
         valErrs = ''
         # check all values and output just one error for all of them
         for tdv in vars(out).keys():
@@ -34,7 +34,8 @@ class TestEvalGibbsPureSubstance(ut.TestCase):
         if valErrs:
             self.fail(valErrs)
     def test_evalgibbs_puresubstance_singlepoint(self):
-        out = eg.evalSolutionGibbs(self.spline['sp'], (0, 0), MWv=self.spline['MW'][0])
+        pidx = 0; tidx = 0
+        out = eg.evalSolutionGibbs(self.spline['sp'], (self.P[pidx], self.T[tidx]), MWv=self.spline['MW'][0])
         valErrs = ''
         # check all values and output just one error for all of them
         for tdv in vars(out).keys():
@@ -43,7 +44,7 @@ class TestEvalGibbsPureSubstance(ut.TestCase):
             if tdv not in self.mlout.dtype.fields:
                 warnings.warn('Matlab output does not include tdv ' + tdv)
             else:
-                mloutfield = self.mlout[tdv][0][0]
+                mloutfield = self.mlout[tdv][pidx][tidx]
                 self.assertEqual(1, outfield.size, tdv + ' output not the same shape as MatLab output')
                 if not (np.allclose(outfield, mloutfield, rtol=relTolerance,
                                     atol=0)  # check both abs and rel differences
