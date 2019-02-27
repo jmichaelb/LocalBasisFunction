@@ -17,8 +17,8 @@ T = np.linspace(200, 1000, num=200)        # temperature, in K
 # - Cp: isobaric specific heat in J kg^-1 K^-1
 # - Kt: isothermal bulk modulus in MPa
 # - alpha:  thermal expansivity in K-1
-tdstate = eg.evalSolutionGibbs(water_spline['sp'], np.array([P, T]), 'rho', 'Cp', 'Kt', 'alpha', failOnExtrapolate=False)
-# for full set of implemented statevars: eg.evalSolutionGibbs(water_spline['sp'], np.array([P, T]))
+tdstate = eg.evalSolutionGibbsGrid(water_spline['sp'], np.array([P, T]), 'rho', 'Cp', 'Kt', 'alpha', failOnExtrapolate=False)
+# for full set of implemented statevars: eg.evalSolutionGibbsGrid(water_spline['sp'], np.array([P, T]))
 
 # graph the output
 rcParams['axes.labelpad'] = 10 # add some padding to prevents axis labels from covering ticks

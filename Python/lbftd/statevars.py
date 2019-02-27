@@ -227,7 +227,7 @@ def _getTDVSpec(name, calcFn, reqM=False, reqMWv=False, parmMWv='MWv', reqMWu=Fa
     :param parmtdv:     the name of the parameter of calcFn used to pass in the tdvout if reqTDV
     :param reqSpline:   If True, calcFn needs the spline definition
     :param parmspline:  the name of the parameter of calcFn used to pass in the spline def if reqSpline
-    :param reqPTM:      If True, calcFn needs the original dimension input (parm PTM in evalSolutionGibbs) to run
+    :param reqPTM:      If True, calcFn needs the original dimension input (parm PTM in evalSolutionGibbs*) to run
     :param parmptm:     the name of the parameter of calcFn used to pass in the original input if reqPTM
     :param req0M:       if True, calcFn needs the 0 concentration for calculating apparent values
     :return:            a namedtuple giving the spec for the tdv
@@ -257,7 +257,7 @@ def _getTDVSpec(name, calcFn, reqM=False, reqMWv=False, parmMWv='MWv', reqMWu=Fa
 def _getSupportedThermodynamicVariables():
     """ When adding new tdvs, you don't need to worry about adding them in any particular order -
         dependencies are handled elsewhere
-        See also the comments for _getTDVSpec and evalSolutionGibbs
+        See also the comments for _getTDVSpec and evalSolutionGibbs*
 
     :return: immutable iterable with the the full set of specs for supported thermodynamic variables
     """

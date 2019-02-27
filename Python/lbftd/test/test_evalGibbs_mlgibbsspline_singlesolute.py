@@ -1,3 +1,4 @@
+from random import randint
 import warnings, unittest as ut
 import numpy as np
 import scipy.io as sio
@@ -15,9 +16,9 @@ class TestEvalGibbsSingleSolute(ut.TestCase):
         self.M = np.arange(0, 8, 2).astype(float)
     def tearDown(sThermodyelf):
         pass
-    def test_evalgibbs_singlesolute_allmeasures(self):
-        out = eg.evalSolutionGibbs(self.spline['sp'], np.array([self.P, self.T, self.M]),
-                                   MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
+    def test_evalgibbs_singlesolute_grid_allmeasures(self):
+        out = eg.evalSolutionGibbsGrid(self.spline['sp'], np.array([self.P, self.T, self.M]),
+                                       MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
         valErrs = ''
         # check all values and output just one error for all of them
         for tdv in vars(out).keys():
@@ -35,9 +36,9 @@ class TestEvalGibbsSingleSolute(ut.TestCase):
                               ' and relative differences as large as '+str(np.max(relDiffs))+'.\n'
         if valErrs:
             self.fail(valErrs)
-    def test_evalgibbs_singlesolute_Cpa_no0M(self):
-        out = eg.evalSolutionGibbs(self.spline['sp'], np.array([self.P, self.T, self.M[1:]]), 'Cpa',
-                                   MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
+    def test_evalgibbs_singlesolute_grid_Cpa_no0M(self):
+        out = eg.evalSolutionGibbsGrid(self.spline['sp'], np.array([self.P, self.T, self.M[1:]]), 'Cpa',
+                                       MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
         valErrs = ''
         for tdv in vars(out).keys():
             outfield = getattr(out, tdv)
@@ -53,10 +54,11 @@ class TestEvalGibbsSingleSolute(ut.TestCase):
                               ' and relative differences as large as ' + str(np.max(relDiffs)) + '.\n'
         if valErrs:
             self.fail(valErrs)
-    def test_evalgibbs_singlesolute_singlepoint(self):
+    def test_evalgibbs_singlesolute_scatter_singlepoint_allmeasures(self):
         pidx = 0; tidx = 0; midx = 0;
-        out = eg.evalSolutionGibbs(self.spline['sp'], (self.P[pidx], self.T[tidx], self.M[midx]),
-                                   MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
+        PTM = np.empty((1,), np.object)
+        PTM[0] = (self.P[pidx], self.T[tidx], self.M[midx])
+        out = eg.evalSolutionGibbsScatter(self.spline['sp'], PTM, MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
         valErrs = ''
         # check all values and output just one error for all of them
         for tdv in vars(out).keys():
@@ -77,10 +79,11 @@ class TestEvalGibbsSingleSolute(ut.TestCase):
                               ' and relative differences as large as ' + str(np.max(relDiffs)) + '.\n'
         if valErrs:
             self.fail(valErrs)
-    def test_evalgibbs_singlesolute_singlepoint_Va_no0M(self):
+    def test_evalgibbs_singlesolute_scatter_singlepoint_Va_no0M(self):
         pidx = 1; tidx = 2; midx = 3;
-        out = eg.evalSolutionGibbs(self.spline['sp'], (self.P[pidx], self.T[tidx], self.M[midx]),
-                                   'Va', MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
+        PTM = np.empty((1,), np.object)
+        PTM[0] = (self.P[pidx], self.T[tidx], self.M[midx])
+        out = eg.evalSolutionGibbsScatter(self.spline['sp'], PTM, 'Va', MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
         valErrs = ''
         for tdv in vars(out).keys():
             outfield = getattr(out, tdv)
@@ -91,6 +94,39 @@ class TestEvalGibbsSingleSolute(ut.TestCase):
                         and np.allclose(outfield, mloutfield, rtol=0, atol=absTolerance)):
                     absDiffs = np.absolute(outfield - mloutfield)
                     relDiffs = absDiffs / np.absolute(mloutfield)
+                    valErrs = valErrs + 'Output for ' + tdv + ' has absolute differences as large as ' + str(
+                        np.max(absDiffs)) + \
+                              ' and relative differences as large as ' + str(np.max(relDiffs)) + '.\n'
+        if valErrs:
+            self.fail(valErrs)
+    def test_evalgibbs_singlesolute_scatter_multipoint_allmeasures(self):
+        numpts = 4
+        ptindices = np.empty((numpts,), np.object)
+        PTM = np.empty((numpts,), np.object)
+        for i in np.arange(0, numpts):        # get random data points (pick P/T separately)
+            pidx = randint(0, len(self.P)-1)
+            tidx = randint(0, len(self.T)-1)
+            midx = randint(0, len(self.M)-1)
+            ptindices[i] = (pidx, tidx, midx)
+            PTM[i] = (self.P[pidx], self.T[tidx], self.M[midx])
+        out = eg.evalSolutionGibbsScatter(self.spline['sp'], PTM, MWv=self.spline['MW'][0], MWu=self.spline['MW'][1])
+        valErrs = ''
+        # check all values and output just one error for all of them
+        for tdv in vars(out).keys():
+            outfield = getattr(out, tdv)
+            self.assertEqual(numpts, outfield.size, 'Output for ' + tdv + ' has too many values')
+            if tdv not in self.mlout.dtype.fields:
+                warnings.warn('Matlab output does not include tdv ' + tdv)
+            else:
+                # get randomly scattered outputs
+                mlout = np.empty((numpts,), float)
+                for i in np.arange(0, numpts):
+                    mlout[i] = self.mlout[tdv][ptindices[i]]
+                if not (np.allclose(outfield, mlout, rtol=relTolerance,
+                                    atol=0)  # check both abs and rel differences
+                        and np.allclose(outfield, mlout, rtol=0, atol=absTolerance)):
+                    absDiffs = np.absolute(outfield - mlout)
+                    relDiffs = absDiffs / np.absolute(mlout)
                     valErrs = valErrs + 'Output for ' + tdv + ' has absolute differences as large as ' + str(
                         np.max(absDiffs)) + \
                               ' and relative differences as large as ' + str(np.max(relDiffs)) + '.\n'
