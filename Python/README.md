@@ -1,4 +1,4 @@
-These packages have been tested on OSX in Python 3.7.  
+These packages have been tested with Python 3.7 on OSX and with Python 3.6.8 on Windows. 
 Although they are intended to be platform-independent, they have not been tested on other operating systems.
 
 
@@ -9,13 +9,14 @@ The following packages are required:
 
 Demo scripts may also require the following packages:
 - matplotlib
+- [mayavi](https://docs.enthought.com/mayavi/mayavi/installation.html?highlight=install) 
 - [jupyter](https://jupyter.readthedocs.io/en/latest/install.html)
 - [tkinter](https://docs.python.org/3/library/tkinter.html?highlight=tkinter#module-tkinter)
 
 
-To install, first make sure you have the [most recent version of pip](https://pip.pypa.io/en/stable/installing/#upgrading-pip) 
-installed.  Use the following command.  Note the escaped ``&`` before ``subdirectory`` - this may not be necessary on 
-Windows, but on that OS, the URL may instead need to be enclosed by double quotes).
+Installation requires that [git](https://www.git-scm.com/downloads) be installed on the system.  
+Also make sure you have the [most recent version of pip](https://pip.pypa.io/en/stable/installing/#upgrading-pip) 
+installed.  Use the following command in Terminal on OSX or in Git Bash on Windows.  
 
 ``pip install git+https://github.com/jmichaelb/LocalBasisFunction.git@master#egg=uw-highP-geophysics-tools\&subdirectory=Python``
 
