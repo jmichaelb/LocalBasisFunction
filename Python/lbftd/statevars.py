@@ -72,14 +72,14 @@ def evalIsothermalBulkModulus(derivs):
     return -1 * derivs.d1P / derivs.d2P
 
 
-def evalIsothermalBulkModulusWrtPressure(derivs):
+def evalPDerivIsothermalBulkModulus(derivs):
     """
     :return:        Kp (K')
     """
     return derivs.d1P * np.power(derivs.d2P, -2) * derivs.d3P - 1
 
 
-def evalIsotropicBulkModulus(tdv):
+def evalIsentropicBulkModulus(tdv):
     """
     :return:        Ks
     """
@@ -115,7 +115,7 @@ def evalSolventChemicalPotential(MWv, f, gPTM, derivs, tdv):
     return (tdv.G * MWv) - (MWv * f * gPTM[iM] * derivs.d1M)
 
 
-def evalEnthalpy(gPTM, tdv):
+def evalHelmholtzEnergy(gPTM, tdv):
     """
     :return:        H
     """
@@ -218,7 +218,7 @@ def _getTDVSpec(name, calcFn, reqM=False, reqMWv=False, parmMWv='MWv', reqMWu=Fa
                         factor
     :param reqDerivs:   A list of derivatives needed to DIRECTLY calculate the tdv
                         (e.g. for tdv Kp, this would be ['d1P','dP','d3P']
-                        - see fn evalIsothermalBulkModulusWrtPressure)
+                        - see fn evalPDerivIsothermalBulkModulus)
                         See getDerivatives for a full list of derivatives that can be calculated
     :param parmderivs:  the name of the parameter of calcFn used to pass in the pre-calculated derivatives if reqDerivs
     :param reqTDV:      A list of other thermodynamic variables needed to DIRECTLY calculate the tdv
@@ -263,24 +263,24 @@ def _getSupportedThermodynamicVariables():
     """
     out = tuple([
         _getTDVSpec('G', evalGibbsEnergy, reqSpline=True, reqPTM=True),
+        _getTDVSpec('U', evalInternalEnergy, reqGrid=True, reqTDV=['G', 'rho', 'S']),
+        _getTDVSpec('H', evalHelmholtzEnergy, reqGrid=True, reqTDV=['U', 'S']),
+        _getTDVSpec('S', evalEntropy, reqDerivs=['d1T']),
         _getTDVSpec('rho', evalDensity, reqDerivs=['d1P']),
-        _getTDVSpec('vel', evalSoundSpeed, reqDerivs=['d1P', 'dPT', 'd2T', 'd2P']),
+        _getTDVSpec('V', evalVolume, reqTDV=['rho']),
         _getTDVSpec('Cp', evalIsobaricSpecificHeat, reqGrid=True, reqDerivs=['d2T']),
         _getTDVSpec('Cv', evalIsochoricSpecificHeat, reqGrid=True, reqDerivs=['dPT', 'd2P'], reqTDV=['Cp']),
-        _getTDVSpec('alpha', evalThermalExpansivity, reqDerivs=['dPT'], reqTDV=['rho']),
-        _getTDVSpec('U', evalInternalEnergy, reqGrid=True, reqTDV=['G', 'rho', 'S']),
-        _getTDVSpec('H', evalEnthalpy, reqGrid=True, reqTDV=['U', 'S']),
-        _getTDVSpec('S', evalEntropy, reqDerivs=['d1T']),
         _getTDVSpec('Kt', evalIsothermalBulkModulus, reqDerivs=['d1P', 'd2P']),
-        _getTDVSpec('Kp', evalIsothermalBulkModulusWrtPressure, reqDerivs=['d1P', 'd2P', 'd3P']),
-        _getTDVSpec('Ks', evalIsotropicBulkModulus, reqTDV=['rho', 'vel']),
+        _getTDVSpec('Kp', evalPDerivIsothermalBulkModulus, reqDerivs=['d1P', 'd2P', 'd3P']),
+        _getTDVSpec('Ks', evalIsentropicBulkModulus, reqTDV=['rho', 'vel']),
+        _getTDVSpec('vel', evalSoundSpeed, reqDerivs=['d1P', 'dPT', 'd2T', 'd2P']),
+        _getTDVSpec('alpha', evalThermalExpansivity, reqDerivs=['dPT'], reqTDV=['rho']),
         _getTDVSpec('mus', evalSoluteChemicalPotential, reqMWu=True, reqF=True, reqDerivs=['d1M'], reqTDV=['G']),
         _getTDVSpec('muw', evalSolventChemicalPotential, reqM=True, reqMWv=True, reqGrid=True, reqF=True,
                     reqDerivs=['d1M'], reqTDV=['G']),
         _getTDVSpec('Vm', evalPartialMolarVolume, reqMWu=True, reqF=True, reqDerivs=['d1P', 'dPM']),
         _getTDVSpec('Cpm', evalPartialMolarHeatCapacity, reqMWu=True, reqGrid=True, reqF=True, reqDerivs=['d2T1M'],
                     reqTDV=['Cp']),
-        _getTDVSpec('V', evalVolume, reqTDV=['rho']),
         _getTDVSpec('Cpa', evalApparentSpecificHeat, reqM=True, reqGrid=True, reqF=True, reqTDV=['Cp'], req0M=True),
         _getTDVSpec('Va', evalApparentVolume, reqM=True, reqGrid=True, reqF=True, reqTDV=['V'], req0M=True)
             ])

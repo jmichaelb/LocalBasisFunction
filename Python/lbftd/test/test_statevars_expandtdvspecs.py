@@ -61,6 +61,9 @@ class TestStatevarsExpandTDVSpecs(ut.TestCase):
     def test_evalgibbs_2d_expandmultiple(self):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec(('V', 'Cp', 'U'), 2)]
         self.assertEqual(Counter(tdvs), Counter(['V', 'rho', 'Cp', 'U', 'G', 'S']))
+    def test_statevars_2d_list(self):
+        orderedTdvs = ['G', 'U', 'H', 'S', 'rho', 'V', 'Cp', 'Cv', 'Kt', 'Kp', 'Ks', 'vel', 'alpha']
+        self.assertListEqual(orderedTdvs, [v.name for v in lbftd.statevars.tdvsPTOnly])
     #########################################
     ## 3d spline expandTDVSpec tests
     #########################################
@@ -89,6 +92,9 @@ class TestStatevarsExpandTDVSpecs(ut.TestCase):
     def test_evalgibbs_3d_expandmultiple(self):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec(('muw', 'Va', 'Vm'), 3)]
         self.assertEqual(Counter(tdvs), Counter(['muw', 'G', 'Va', 'V', 'rho', 'Vm']))
+    def test_statevars_3d_list(self):
+        orderedTdvs = ['G', 'U', 'H', 'S', 'rho', 'V', 'Cp', 'Cv', 'Kt', 'Kp', 'Ks', 'vel', 'alpha', 'mus', 'muw', 'Vm', 'Cpm', 'Cpa', 'Va']
+        self.assertListEqual(orderedTdvs, [tdv.name for tdv in lbftd.statevars.statevars])
 
 
 
