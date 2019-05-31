@@ -48,7 +48,7 @@ if nargin<6
         surf(P,T,mask0'.*mask'.*Y')
     end
  
- %shading 'flat'
+ shading 'flat'
 else
 surf(P,T,mask0'.*mask'.*Y','SpecularExponent',1,...
     'FaceColor',color,...

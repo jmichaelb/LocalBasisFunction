@@ -37,6 +37,7 @@ function sp=spdft(X,Y,dY,input_options)
 %test whether parallel computing is possible on this computer:
 has_parfor = ~isempty(which('parfor'));
 
+
 if nargin==3
     input_options=[];
 end
@@ -110,7 +111,7 @@ if isfield(input_options,'mask')
     mask=input_options.mask;
     n_incld=find(isfinite(mask(:)));
     ndat=length(n_incld);
-    if(max(size(Y)~=size(mask))~=0),error('mask size and size of input data are not compatible'),end
+    if(max(size(Y(:))~=size(mask(:)))~=0),error('mask size and size of input data are not compatible'),end
 else
     maskflg=0;
     mask=ones(size(Y));
@@ -133,7 +134,7 @@ end
 NA=sqrt(ndat);   % weight for the total number of data being fit
 tmp=std(Y(n_incld));
 if(isnan(tmp)|| not(isfinite(tmp)) ),error('One or more input values to be fit are not finite'),end 
-mdrv_ordr=mdrv+1; %increment derivative by one to allign with indexing of basis functions from spcol2
+mdrv_ordr=mdrv+1; %increment derivative by one to allign with indexing of basis functions from spcol
 
 if (nC~=nXvar) 
     error('numer of Control point variables is not the same as the number of independent variables'),
@@ -148,16 +149,17 @@ if nXvar==1
 else
     if flg_grd
         for i=1:nXvar
-            xmin=min(X{i})
-            xmax=max(X{i})
-            Xc{i}(1)
-            Xc{i}(end)          
+            xmin=min(X{i});
+            xmax=max(X{i});
+            Xc{i}(1);
+            Xc{i}(end) ;         
             if(Xc{i}(1)>xmin || Xc{i}(end)<xmax), error('Data lie beyond the range of knots'),end
         end
     else
         for i=1:nXvar
            xmin=min(X(:,i));
            xmax=max(X(:,i));
+
            if(Xc{i}(1)>xmin || Xc{i}(end)<xmax), error('Data lie beyond the range of knots'),end           
         end
     end
@@ -215,11 +217,11 @@ end
 if flg_grd
     switch nC
         case 1
-            Rdat=spcol2(Xknts,ordr(1),brk2knt(X,1));
+            Rdat=spcol(Xknts,ordr(1),brk2knt(X,1));
         case 2
-            Rdat=makeCmn(spcol2(Xknts,ordr(1),brk2knt(X{1},1)),spcol2(Yknts,ordr(2),brk2knt(X{2},1)));
+            Rdat=makeCmn(spcol(Xknts,ordr(1),brk2knt(X{1},1)),spcol(Yknts,ordr(2),brk2knt(X{2},1)));
         case 3
-            Rdat=makeCmn(spcol2(Xknts,ordr(1),brk2knt(X{1},1)),spcol2(Yknts,ordr(2),brk2knt(X{2},1)),spcol2(Zknts,ordr(3),brk2knt(X{3},1)));
+            Rdat=makeCmn(spcol(Xknts,ordr(1),brk2knt(X{1},1)),spcol(Yknts,ordr(2),brk2knt(X{2},1)),spcol(Zknts,ordr(3),brk2knt(X{3},1)));
     end
 else    
     Rdat=sparse(npts,nspl);
@@ -227,11 +229,11 @@ else
        case 1
         if has_parfor 
          parfor k=1:npts
-           Rdat(k,:)=spcol2(Xknts,ordr(1),brk2knt(X(k,1),1));
+           Rdat(k,:)=spcol(Xknts,ordr(1),brk2knt(X(k,1),1));
          end
         else
          for k=1:npts
-           Rdat(k,:)=spcol2(Xknts,ordr(1),brk2knt(X(k,1),1));
+           Rdat(k,:)=spcol(Xknts,ordr(1),brk2knt(X(k,1),1));
          end
         end
        case 2
@@ -239,11 +241,11 @@ else
            tmpy=X(:,2);
           if has_parfor 
            parfor k=1:npts
-             Rdat(k,:)=makeCmn(spcol2(Xknts,ordr(1),brk2knt(tmpx(k),1)),spcol2(Yknts,ordr(2),brk2knt(tmpy(k),1)));
+             Rdat(k,:)=makeCmn(spcol(Xknts,ordr(1),brk2knt(tmpx(k),1)),spcol(Yknts,ordr(2),brk2knt(tmpy(k),1)));
            end  
           else
            for k=1:npts
-             Rdat(k,:)=makeCmn(spcol2(Xknts,ordr(1),brk2knt(tmpx(k),1)),spcol2(Yknts,ordr(2),brk2knt(tmpy(k),1)));
+             Rdat(k,:)=makeCmn(spcol(Xknts,ordr(1),brk2knt(tmpx(k),1)),spcol(Yknts,ordr(2),brk2knt(tmpy(k),1)));
            end  
           end
           
@@ -253,11 +255,11 @@ else
            tmpz=X(:,3);
            if has_parfor 
            parfor k=1:npts
-             Rdat(k,:)=makeCmn(spcol2(Xknts,ordr(1),brk2knt(tmpx(k),1)),spcol2(Yknts,ordr(2),brk2knt(tmpy(k),1)),spcol2(Zknts,ordr(3),brk2knt(tmpz(k),1)));
+             Rdat(k,:)=makeCmn(spcol(Xknts,ordr(1),brk2knt(tmpx(k),1)),spcol(Yknts,ordr(2),brk2knt(tmpy(k),1)),spcol(Zknts,ordr(3),brk2knt(tmpz(k),1)));
            end
            else
            for k=1:npts
-             Rdat(k,:)=makeCmn(spcol2(Xknts,ordr(1),brk2knt(tmpx(k),1)),spcol2(Yknts,ordr(2),brk2knt(tmpy(k),1)),spcol2(Zknts,ordr(3),brk2knt(tmpz(k),1)));
+             Rdat(k,:)=makeCmn(spcol(Xknts,ordr(1),brk2knt(tmpx(k),1)),spcol(Yknts,ordr(2),brk2knt(tmpy(k),1)),spcol(Zknts,ordr(3),brk2knt(tmpz(k),1)));
            end
            end
      end
@@ -288,14 +290,14 @@ if flgReg
       case 1
         Xg=mkgrid(Xc,RegFac(1));
         wtreg=area_wt(Xg);
-        colX=spcol2(Xknts,ordr(1),brk2knt(Xg,mdrv_ordr(1)));
+        colX=spcol(Xknts,ordr(1),brk2knt(Xg,mdrv_ordr(1)));
         X2X=colX(mdrv_ordr(1):mdrv_ordr(1):end,:);
         [nr,~]=size(X2X);
       case 2
           Xg=mkgrid(Xc{1},RegFac(1));
           Yg=mkgrid(Xc{2},RegFac(2));
-          colX=spcol2(Xknts,ordr(1),brk2knt(Xg,mdrv_ordr(1)));
-          colY=spcol2(Yknts,ordr(2),brk2knt(Yg,mdrv_ordr(2)));
+          colX=spcol(Xknts,ordr(1),brk2knt(Xg,mdrv_ordr(1)));
+          colY=spcol(Yknts,ordr(2),brk2knt(Yg,mdrv_ordr(2)));
           wtreg=area_wt({Xg,Yg});
           X2X=makeCmn(colX(mdrv_ordr(1):mdrv_ordr(1):end,:),colY(1:mdrv_ordr(2):end,:));
           Y2Y=makeCmn(colX(1:mdrv_ordr(1):end,:),colY(mdrv_ordr(2):mdrv_ordr(2):end,:));
@@ -306,9 +308,9 @@ if flgReg
         Yg=mkgrid(Xc{2},RegFac(2));
         Zg=mkgrid(Xc{3},RegFac(3));
         wtreg=area_wt({Xg,Yg,Zg});
-        colX=spcol2(Xknts,ordr(1),brk2knt(Xg,mdrv_ordr(1)));
-        colY=spcol2(Yknts,ordr(2),brk2knt(Yg,mdrv_ordr(2)));
-        colZ=spcol2(Zknts,ordr(3),brk2knt(Zg,mdrv_ordr(3)));
+        colX=spcol(Xknts,ordr(1),brk2knt(Xg,mdrv_ordr(1)));
+        colY=spcol(Yknts,ordr(2),brk2knt(Yg,mdrv_ordr(2)));
+        colZ=spcol(Zknts,ordr(3),brk2knt(Zg,mdrv_ordr(3)));
         X2X=makeCmn(colX(mdrv_ordr(1):mdrv_ordr(1):end,:),colY(1:mdrv_ordr(2):end,:),colZ(1:mdrv_ordr(3):end,:));
         Y2Y=makeCmn(colX(1:mdrv_ordr(1):end,:),colY(mdrv_ordr(2):mdrv_ordr(2):end,:),colZ(1:mdrv_ordr(3):end,:));
         Z2Z=makeCmn(colX(1:mdrv_ordr(1):end,:),colY(1:mdrv_ordr(2):end,:),colZ(mdrv_ordr(3):mdrv_ordr(3):end,:));
@@ -395,8 +397,10 @@ else
 end
  Ycc=fnval(sp,Xc);
  
-devs=Yc(n_incld)-Y(n_incld);
+devs=Yc(n_incld(:))-Y(n_incld(:));
+
 rms=sqrt(sum(devs.^2)/ndat);
+
 chisqr=sum((devs(:)./Uncert(:)).^2)/ndat;
 
 sp.Data.X=X;

@@ -1,4 +1,4 @@
-function spG=spgft(Data,Options)
+function spG=spgft_P(Data,Options)
 % create a local basis function representation (tensor b splines) for Gibbs energy - use G (optionally rho and Cp) as constraint and
 % regularize in the non-physical region by requiring smooth mdrv'th derivatives.
 % This solves the linear problem where G can be function of P and T or function of P T and composition (m)
@@ -19,8 +19,10 @@ function spG=spgft(Data,Options)
 % function call:
 %      sp_G=spgft(Data,Options)
 %   where Data is stucture with
+%    input "MW" the molecular weight for a compositional fit
 %    input "PTm" a cell containing P and T or P T and m that defines the grid
 %    input "G" is either gridded data at PTm values or Tm values for P=Pr
+%    input "P_ref" is the pressure applying to vector G as a function of T (default P_ref=0.1 MPa)
 %    inputs "rho" and "Cp" are either gridded data at PTm values or Tm values for P=Pr
 %    input "mask" has ones where input thermodynamic properties are defined and NaN where they are not (Default is all ones)
 %
@@ -48,7 +50,7 @@ function spG=spgft(Data,Options)
 %  changes in damping and weights for different "size" problems - the goal
 %  is to find a system that allows weights and damping near one for any
 %  problem.
-%  JMB 2015-2017
+%  JMB 2015-2018 - 
 
 if(isfield(Data,'PTm'))
     PTm=Data.PTm;
@@ -59,7 +61,20 @@ ndim=length(PTm);
 m_flg=0;
 if ndim==3
     m_flg=1;
+    if(isfield(Data,'nu'))
+       SpG.MW=Data.nu;
+    else
+        error('Input "Data" needs a "nu" field for mixtures (count of species in solution) ')
+    end
 end
+
+if(isfield(Data,'MW'))
+   SpG.MW=Data.MW;
+else
+        error('Input "Data" needs a "MW" field (the molecular weights-kg/mol - scalar for single component and vector for mixtures) ')
+end
+
+
 
 if(isfield(Data,'rho'))
     rho=Data.rho;
@@ -77,6 +92,34 @@ if(isfield(Data,'G'))
     G=Data.G;
 else
     error('Input "Data" needs a "G" field to define Gibbs energy grid')
+end
+
+% determine if G is defined only at the base or everywhere
+if m_flg
+   if (length(size(squeeze(G))))==2
+        Gvflg=1;
+   else
+        Gvflg=0;
+   end 
+else
+    if min(size(squeeze(G)))==1
+        Gvflg=1;
+    else
+        Gvflg=0;
+    end
+end
+
+
+if Gvflg
+  if(isfield(Data,'P_ref'))
+    P_ref=Data.P_ref;
+  else
+    P_ref=0.1;
+  end
+else
+ if(isfield(Data,'P_ref'))
+     error('P_ref incorrectly set for G as a surface in P and T')
+ end
 end
 
 if(isfield(Data,'mask'))
@@ -105,6 +148,7 @@ end
 % extract P and T from cell, convert P to Pa units
 P=PTm{1}*1e6;
 P=P(:);
+P_ref=P_ref*1e6;
 T=PTm{2};
 T=T(:)';
 if m_flg
@@ -132,6 +176,8 @@ if(isfield(Options,'normflg'))
 else
     normflg=0;
 end
+
+
 
 reg_flg=1;
 if(isfield(Options,'nReg'))
@@ -225,27 +271,15 @@ else
     Cpflg=1;
 end
 
-% determine if G is defined only at the base or everywhere
-if m_flg
-   if (length(size(squeeze(G))))==2
-        Gvflg=1;
-   else
-        Gvflg=0;
-   end 
-else
-    if min(size(squeeze(G)))==1
-        Gvflg=1;
-    else
-        Gvflg=0;
-    end
-end
 
 m_rb=mask(1,:,:);
 id_rb=find(not(isnan(m_rb(:))));
+
 n_dat=length(id_incl);
 norm_fac=sqrt(n_dat);  % will weight data vs regularization by square root of number of data points
 
-if Gvflg % handle G only at 1 bar or G for all P and T and m
+
+if Gvflg % handle G only at reference pressure or G for all P and T and m
     tmp=std(G(id_rb));
     if tmp>0
      G_norm=tmp^-1; % use standard deviation of G at 1 bar for normalization
@@ -300,18 +334,22 @@ Tknts=aptknt(Tc(:)',kt);
 
 Tcol = spcol(Tknts,kt,brk2knt(T,kt));
 Pcol = spcol(Pknts,kp,brk2knt(P,kp));
+Pcol_ref=spcol(Pknts,kp,brk2knt(P_ref,1));
+
+
 if m_flg
     mknts=aptknt(mc(:)',km);
     mcol = spcol(mknts,km,brk2knt(m,km));
 end
 
 % create the matrixes of basis functions
-% depends on whether G is defined everywhere or just at the base
+% depends on whether G is defined everywhere or just at the reference pressure
+
 if Gvflg
     if m_flg
-        RdatG=makeCmn(Pcol(1,:),Tcol(1:kt:end,:),mcol(1:km:end,:));
+        RdatG=makeCmn(Pcol_ref,Tcol(1:kt:end,:),mcol(1:km:end,:));
     else
-        RdatG=makeCmn(Pcol(1,:),Tcol(1:kt:end,:));
+        RdatG=makeCmn(Pcol_ref,Tcol(1:kt:end,:));
     end
 else
     if m_flg
@@ -320,6 +358,8 @@ else
         RdatG=makeCmn(Pcol(1:kp:end,:),Tcol(1:kt:end,:));
     end
 end
+
+
 % basis functions for densities (volumes) and specific heats:
 if m_flg
      RdatV=makeCmn(Pcol(2:kp:end,:),Tcol(1:kt:end,:),mcol(1:km:end,:));
@@ -396,6 +436,8 @@ spG.dim=1;
 
 % set up matrixes for the solution that gives the coefficients as A\B (normal equations) or (A'*A)\(A'*B) (least square solution)
 % a number of different setups depending on all the choices for "data" and regularization
+
+        
 if reg_flg
     if m_flg
         if (rhoflg && Cpflg)
@@ -417,8 +459,11 @@ if reg_flg
             B=[G_norm*G(id_incl);zeros(3*nr,1)];      
         end        
     else
+        
+
         if (rhoflg && Cpflg)
-            if Gvflg          
+            if Gvflg    
+                
                 A=[G_norm*RdatG(id_rb,:);weight(1)*Gp_norm*RdatV(id_incl,:); weight(2)*Gtt_norm*RdatC(id_incl,:); norm_facP*lam(1)*RregP;norm_facT*lam(2)*RregT];
                 B=[G_norm*G(id_rb(:))';weight(1)*Gp_norm*Gp(id_incl(:));weight(2)*Gtt_norm*Gtt(id_incl(:));zeros(2*nr,1)];
             else
@@ -438,7 +483,7 @@ if reg_flg
     end
 else
     if (rhoflg && Cpflg)
-        if Gvflg          
+        if Gvflg      
             A=[G_norm*RdatG(id_rb,:);weight(1)*Gp_norm*RdatV(id_incl,:); weight(2)*Gtt_norm*RdatC(id_incl,:)];
             B=[G_norm*G(id_rb(:))';weight(1)*Gp_norm*Gp(id_incl(:));weight(2)*Gtt_norm*Gtt(id_incl(:))];
         else
@@ -485,7 +530,7 @@ if m_flg
 else
   spG.PTmc={Pc,Tc};
 end  
-
+spG.version=datetime;
 % end of G spline creation - start embeded functions
 
 function D=makeCmn(A,B,C)

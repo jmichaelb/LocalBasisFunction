@@ -1,4 +1,4 @@
-function  Results=fnGval(sp,input)
+function  Results=fnGval_v(sp,input)
 % function to return rho,vel, G, Cp, alpha S U H K and Kp for G splines in either (P and T) or (m, P, and T)
 %  ALL MKS with P in MPa
 %    Usage: Results=G_sp_eval(sp,input, MW) 
@@ -7,10 +7,10 @@ function  Results=fnGval(sp,input)
 %                 m in molality, P in MPa and T in K.  optional MW is molecular
 %                 weight in kg/mol - needed for chemical potentials and
 %                 partial molar quantities
-%           rho in kg/m^3, vel in m/s, G in J/Mg Cp in J/kg/K alpha in K^(-1)
+%           rho in kg/m^3, vel in m/s, G in J/kg Cp in J/kg/K alpha in K^(-1)
 %           mu is dG/dm where m is in units determined externally
 %  
-% JMB 2015  
+% JMB 2015-2019  
 nw=1000/18.01528;  % number of moles of water in a kilogram of water
 R=8.3144;  %kJ/mol/K
 
@@ -55,6 +55,11 @@ if nd==2   % spline in P and T only
 else  % spline in P, T and compositions
     if (isfield(sp,'MW'))
         M=sp.MW;
+        % default.  In the  future water may not be  the solvent and the
+        % first enty gives the MW for the solvent.
+        if length(M)==2
+           M=M(2);
+        end
     else
         error('a compositional LBF needs the molecular weight set in the structure')
     end
@@ -66,7 +71,7 @@ else  % spline in P, T and compositions
     if (isfield(sp,'Go'))
         Goin=sp.Go;         
     else
-        error('a compositional LBF needs the standard state of the solute at the reference P')
+        error('a compositional LBF needs the standard state of the solute at the reference P in the form of a univarient LBF')
     end
     if iscell(input) % gridded output
         P=input{1};T=input{2};  m=input{3}; 
@@ -243,9 +248,10 @@ else  % Scattered data  - broken at moment - need to calculate second set of poi
    end
 end
 
+
+
 Results.rho=rho;
-Results.Va=Va;
-Results.Cpa=Cpa;
+
 Results.Cp=Cp;
 Results.G=G;
 Results.Cv=Cv;
@@ -258,6 +264,8 @@ Results.U=U;
 Results.H=H;
 Results.alpha=alpha;
 if mu_flg
+    Results.Va=Va;
+    Results.Cpa=Cpa;
     Results.mus=mus;
     Results.muw=muw;
     Results.f=f;
@@ -272,8 +280,10 @@ if mu_flg
     Results.aw=aw;
 end
 
+if (isfield(sp,'shear_mod'))
+        shear=sp.shear_mod(1)+sp.shear_mod(2)*(rho-sp.shear_mod(5))+sp.shear_mod(3)*(rho-sp.shear_mod(5))+sp.shear_mod(4)*(Tm-sp.shear_mod(6));
+        Results.Vp=1e3*sqrt((Ks/1e3+4/3*shear)./rho/1e-3);
+        Results.Vs=1e3*sqrt(shear./rho/1e-3);
+        Results.shear=shear;
+end
 
-
-Results.d1P=d1P;
-Results.d2P=d2P;
-Results.d3P=d3P;
