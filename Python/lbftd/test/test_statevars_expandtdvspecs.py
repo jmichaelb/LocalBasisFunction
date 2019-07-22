@@ -15,7 +15,7 @@ class TestStatevarsExpandTDVSpecs(ut.TestCase):
     def test_evalgibbs_2d_expandEmptySpec(self):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec((), 2)]
         self.assertEqual(Counter(tdvs),
-                         Counter(['G', 'rho', 'vel', 'Cp', 'Cv', 'alpha', 'S', 'U', 'H', 'Kt', 'Kp', 'Ks', 'V']))
+                         Counter(['G', 'rho', 'vel', 'Cp', 'Cv', 'alpha', 'S', 'U', 'A', 'Kt', 'Kp', 'Ks', 'V']))
     def test_evalgibbs_2d_errOnUnknown(self):
         with self.assertRaisesRegex(ValueError, 'One or more unsupported statevars have been requested: {\'foo\'}'):
             lbftd.statevars.expandTDVSpec(('foo',), 2)
@@ -40,9 +40,9 @@ class TestStatevarsExpandTDVSpecs(ut.TestCase):
     def test_evalgibbs_2d_expandU(self):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec('U', 2)]
         self.assertEqual(Counter(tdvs), Counter(['U', 'G', 'rho', 'S']))
-    def test_evalgibbs_2d_expandH(self):
-        tdvs = [t.name for t in lbftd.statevars.expandTDVSpec('H', 2)]
-        self.assertEqual(Counter(tdvs), Counter(['H', 'U', 'S', 'G', 'rho']))
+    def test_evalgibbs_2d_expandA(self):
+        tdvs = [t.name for t in lbftd.statevars.expandTDVSpec('A', 2)]
+        self.assertEqual(Counter(tdvs), Counter(['A', 'U', 'S', 'G', 'rho']))
     def test_evalgibbs_2d_expandS(self):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec('S', 2)]
         self.assertEqual(Counter(tdvs), Counter(['S']))
@@ -62,7 +62,7 @@ class TestStatevarsExpandTDVSpecs(ut.TestCase):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec(('V', 'Cp', 'U'), 2)]
         self.assertEqual(Counter(tdvs), Counter(['V', 'rho', 'Cp', 'U', 'G', 'S']))
     def test_statevars_2d_list(self):
-        orderedTdvs = ['G', 'U', 'H', 'S', 'rho', 'V', 'Cp', 'Cv', 'Kt', 'Kp', 'Ks', 'vel', 'alpha']
+        orderedTdvs = ['G', 'U', 'A', 'S', 'rho', 'V', 'Cp', 'Cv', 'Kt', 'Kp', 'Ks', 'vel', 'alpha']
         self.assertListEqual(orderedTdvs, [v.name for v in lbftd.statevars.tdvsPTOnly])
     #########################################
     ## 3d spline expandTDVSpec tests
@@ -70,7 +70,7 @@ class TestStatevarsExpandTDVSpecs(ut.TestCase):
     def test_evalgibbs_3d_expandEmptySpec(self):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec((), 3)]
         self.assertEqual(Counter(tdvs),
-                         Counter(['G', 'rho', 'vel', 'Cp', 'Cv', 'alpha', 'S', 'U', 'H', 'Kt', 'Kp', 'Ks', 'V', 'mus', 'muw', 'Vm', 'Cpm', 'Cpa', 'Va']))
+                         Counter(['G', 'rho', 'vel', 'Cp', 'Cv', 'alpha', 'S', 'U', 'A', 'Kt', 'Kp', 'Ks', 'V', 'mus', 'muw', 'Vm', 'Cpm', 'Cpa', 'Va']))
     def test_evalgibbs_3d_expandmus(self):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec('mus', 3)]
         self.assertEqual(Counter(tdvs), Counter(['mus', 'G']))
@@ -93,7 +93,7 @@ class TestStatevarsExpandTDVSpecs(ut.TestCase):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec(('muw', 'Va', 'Vm'), 3)]
         self.assertEqual(Counter(tdvs), Counter(['muw', 'G', 'Va', 'V', 'rho', 'Vm']))
     def test_statevars_3d_list(self):
-        orderedTdvs = ['G', 'U', 'H', 'S', 'rho', 'V', 'Cp', 'Cv', 'Kt', 'Kp', 'Ks', 'vel', 'alpha', 'mus', 'muw', 'Vm', 'Cpm', 'Cpa', 'Va']
+        orderedTdvs = ['G', 'U', 'A', 'S', 'rho', 'V', 'Cp', 'Cv', 'Kt', 'Kp', 'Ks', 'vel', 'alpha', 'mus', 'muw', 'Vm', 'Cpm', 'Cpa', 'Va']
         self.assertListEqual(orderedTdvs, [tdv.name for tdv in lbftd.statevars.statevars])
 
 
