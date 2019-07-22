@@ -1,4 +1,4 @@
-function  Results=fnGval_v(sp,input)
+function  Results=fnGval(sp,input)
 % function to return rho,vel, G, Cp, alpha S U A K and Kp for G splines in either (P and T) or (m, P, and T)
 %  ALL MKS with P in MPa
 %    Usage: Results=G_sp_eval(sp,input, MW) 
