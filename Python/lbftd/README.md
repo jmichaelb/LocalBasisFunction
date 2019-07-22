@@ -17,7 +17,7 @@ These rely only on P and T:
 - _Cv_: isochoric specific heat in J kg<sup>-1</sup> K<sup>-1</sup>
 - _alpha_: thermal expansivity in K<sup>-1</sup>
 - _U_: internal energy in J kg<sup>-1</sup>
-- _H_: enthalpy in J kg<sup>-1</sup>
+- _A_: Helmholtz energy in J kg<sup>-1</sup>
 - _S_: entropy in J kg<sup>-1</sup> K<sup>-1</sup>
 - _Kt_: isothermal bulk modulus in MPa
 - _Kp_: pressure derivatives of isothermal bulk modulus (dimensionless)

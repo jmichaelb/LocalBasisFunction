@@ -117,7 +117,7 @@ def evalSolventChemicalPotential(MWv, f, gPTM, derivs, tdv):
 
 def evalHelmholtzEnergy(gPTM, tdv):
     """
-    :return:        H
+    :return:        A
     """
     return tdv.U - gPTM[iT] * tdv.S
 
@@ -264,7 +264,7 @@ def _getSupportedThermodynamicVariables():
     out = tuple([
         _getTDVSpec('G', evalGibbsEnergy, reqSpline=True, reqPTM=True),
         _getTDVSpec('U', evalInternalEnergy, reqGrid=True, reqTDV=['G', 'rho', 'S']),
-        _getTDVSpec('H', evalHelmholtzEnergy, reqGrid=True, reqTDV=['U', 'S']),
+        _getTDVSpec('A', evalHelmholtzEnergy, reqGrid=True, reqTDV=['U', 'S']),
         _getTDVSpec('S', evalEntropy, reqDerivs=['d1T']),
         _getTDVSpec('rho', evalDensity, reqDerivs=['d1P']),
         _getTDVSpec('V', evalVolume, reqTDV=['rho']),
