@@ -147,6 +147,7 @@ alpha=1e-6*dPT.*rho; % 1e6 for MPa to Pa
 
 U=G-1e6*Pm./rho+Tm.*S;
 A=U-Tm.*S;
+H=U+Tm.*S;
 Kt=-d1P./d2P;
 Kp=d1P.*d2P.^(-2).*d3P -1;
 
@@ -262,6 +263,7 @@ Results.Kp=Kp;
 Results.S=S;
 Results.U=U;
 Results.A=A;
+Results.H=H;
 Results.alpha=alpha;
 if mu_flg
     Results.Va=Va;
