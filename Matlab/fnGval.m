@@ -186,6 +186,7 @@ if iscell(input) % gridded output
        alpha=alpha(:,:,2:end);
        U=U(:,:,2:end);
        A=A(:,:,2:end);
+       H=H(:,:,2:end);
        Kt=Kt(:,:,2:end);
        Kp=Kp(:,:,2:end);
        mus=mus(:,:,2:end);
@@ -251,19 +252,19 @@ end
 
 
 
+Results.G=G;
+Results.S=S;
+Results.U=U;
+Results.H=H;
+Results.A=A;
 Results.rho=rho;
 Results.Cp=Cp;
-Results.G=G;
 Results.Cv=Cv;
-Results.vel=vel;
 Results.Kt=Kt;
 Results.Ks=Ks;
 Results.Kp=Kp;
-Results.S=S;
-Results.U=U;
-Results.A=A;
-Results.H=H;
 Results.alpha=alpha;
+Results.vel=vel;
 if mu_flg
     Results.Va=Va;
     Results.Cpa=Cpa;
