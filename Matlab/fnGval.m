@@ -147,7 +147,7 @@ alpha=1e-6*dPT.*rho; % 1e6 for MPa to Pa
 
 U=G-1e6*Pm./rho+Tm.*S;
 A=U-Tm.*S;
-H=U+Tm.*S;
+H=G+Tm.*S;
 Kt=-d1P./d2P;
 Kp=d1P.*d2P.^(-2).*d3P -1;
 
@@ -252,7 +252,6 @@ end
 
 
 Results.rho=rho;
-
 Results.Cp=Cp;
 Results.G=G;
 Results.Cv=Cv;
@@ -280,12 +279,5 @@ if mu_flg
     Results.Vex=Vex;
     Results.Gex=Gex;
     Results.aw=aw;
-end
-
-if (isfield(sp,'shear_mod'))
-        shear=sp.shear_mod(1)+sp.shear_mod(2)*(rho-sp.shear_mod(5))+sp.shear_mod(3)*(rho-sp.shear_mod(5))+sp.shear_mod(4)*(Tm-sp.shear_mod(6));
-        Results.Vp=1e3*sqrt((Ks/1e3+4/3*shear)./rho/1e-3);
-        Results.Vs=1e3*sqrt(shear./rho/1e-3);
-        Results.shear=shear;
 end
 
