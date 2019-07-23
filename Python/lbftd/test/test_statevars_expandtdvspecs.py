@@ -45,7 +45,7 @@ class TestStatevarsExpandTDVSpecs(ut.TestCase):
         self.assertEqual(Counter(tdvs), Counter(['A', 'U', 'S', 'G', 'rho']))
     def test_evalgibbs_2d_expandH(self):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec('H', 2)]
-        self.assertEqual(Counter(tdvs), Counter(['H', 'U', 'S', 'G', 'rho']))
+        self.assertEqual(Counter(tdvs), Counter(['H', 'S', 'G']))
     def test_evalgibbs_2d_expandS(self):
         tdvs = [t.name for t in lbftd.statevars.expandTDVSpec('S', 2)]
         self.assertEqual(Counter(tdvs), Counter(['S']))
