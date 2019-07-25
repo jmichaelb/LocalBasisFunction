@@ -18,7 +18,7 @@ Installation requires that [git](https://www.git-scm.com/downloads) be installed
 Also make sure you have the [most recent version of pip](https://pip.pypa.io/en/stable/installing/#upgrading-pip) 
 installed.  Run the following command in Terminal on OSX or in Git Bash on Windows.  
 
-``pip install git+https://github.com/jmichaelb/LocalBasisFunction.git@master#egg=uw-highP-geophysics-tools\&subdirectory=Python``
+``pip install git+https://github.com/jmichaelb/LocalBasisFunction.git@v0.7#egg=uw-highP-geophysics-tools\&subdirectory=Python``
 
 If you need to uninstall, use 
 ``pip uninstall uw-highP-geophysics-tools``
