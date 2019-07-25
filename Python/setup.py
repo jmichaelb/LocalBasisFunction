@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name='uw-highP-geophysics-tools',
-    version='0.1a1',
+    version='0.1b1',
     author='pennythewho',
     author_email='pennythewho@gmail.com',
     description='load and evaluate splines developed in MatLab -- for Gibbs energy splines, also calculates several ' +

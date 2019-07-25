@@ -1,7 +1,7 @@
-function  Results=fnGval(sp,input)
+function  Results=OpenGval(sp,input)
 % function to return rho,vel, G, Cp, alpha S U A H K and Kp for G splines in either (P and T) or (m, P, and T)
 %  ALL MKS with P in MPa
-%    Usage: Results=fnGval(sp,input, MW) 
+%    Usage: Results=OpenGval(sp,input, MW) 
 %   Results=Result.rho,vel,G,Cp,alpha,S,U,A,H,Kt,Kp,Ks,mus,muw
 %          where input is either a npts by (2 or 3) matrix of scatter points in [P  T m] or input is a cell of {P,T,m}  
 %                 m in molality, P in MPa and T in K.  optional MW is molecular
@@ -33,23 +33,23 @@ if nd==2   % spline in P and T only
     if iscell(input)  % gridded output
         P=input{1};T=input{2};    
         [Pm,Tm]=ndgrid(P,T);
-        G=fnval(sp,{P,T});
-        d1T=fnval(fnder(sp,[ 0 1]),{P,T});
-        d2T=fnval(fnder(sp,[ 0 2]),{P,T});
-        d1P=fnval(fnder(sp,[ 1 0]),{P,T});
-        dPT=fnval(fnder(sp,[ 1 1]),{P,T});
-        d2P=fnval(fnder(sp,[ 2 0]),{P,T});
-        d3P=fnval(fnder(sp,[ 3 0]),{P,T});
+        G=sp_val(sp,{P,T});
+        d1T=sp_val(sp,[ 0 1],{P,T});
+        d2T=sp_val(sp,[ 0 2],{P,T});
+        d1P=sp_val(sp,[ 1 0],{P,T});
+        dPT=sp_val(sp,[ 1 1],{P,T});
+        d2P=sp_val(sp,[ 2 0],{P,T});
+        d3P=sp_val(sp,[ 3 0],{P,T});
     else % scatter output
         Tm=input(:,2);
         Pm=input(:,1);
-        G=fnval(sp,input')';
-        d1T=fnval(fnder(sp,[ 0 1]),input')';
-        d2T=fnval(fnder(sp,[0 2]),input')';
-        d1P=fnval(fnder(sp,[1 0]),input')';
-        dPT=fnval(fnder(sp,[1 1]),input')';
-        d2P=fnval(fnder(sp,[2 0]),input')';
-        d3P=fnval(fnder(sp,[3 0]),input')';
+        G=sp_val(sp,input);
+        d1T=sp_val(sp,[ 0 1],input);
+        d2T=sp_val(sp,[0 2],input);
+        d1P=sp_val(sp,[1 0],input);
+        dPT=sp_val(sp,[1 1],input);
+        d2P=sp_val(sp,[2 0],input);
+        d3P=sp_val(sp,[3 0],input);
     end
 
 else  % spline in P, T and compositions
@@ -76,7 +76,7 @@ else  % spline in P, T and compositions
     if iscell(input) % gridded output
         P=input{1};T=input{2};  m=input{3}; 
         if(isstruct(Goin))
-            Go=fnval(Goin,T);  % using a spline for the standard state vs T
+            Go=sp_val(Goin,T);  % using a spline for the standard state vs T
         else
             Go=1;
         end
@@ -89,22 +89,22 @@ else  % spline in P, T and compositions
         end
         end
         [Pm,Tm,mm]=ndgrid(P,T,m);
-        G=fnval(sp,{P,T,m});
-        d1T=fnval(fnder(sp,[ 0 1 0]),{P,T,m});
-        d2T=fnval(fnder(sp,[ 0 2 0]),{P,T,m});
-        d3Tm=fnval(fnder(sp,[ 0 2 1]),{P,T,m});
-        d1P=fnval(fnder(sp,[ 1 0 0]),{P,T,m});
-        d2Pm=fnval(fnder(sp,[ 1 0 1]),{P,T,m});
-        dPT=fnval(fnder(sp,[ 1 1 0]),{P,T,m});
-        d2P=fnval(fnder(sp,[ 2 0 0]),{P,T,m});
-        d3P=fnval(fnder(sp,[ 3 0 0]),{P,T,m});
-        dGdm=fnval(fnder(sp,[ 0 0 1]),{P,T,m});
+        G=sp_val(sp,{P,T,m});
+        d1T=sp_val(sp,[ 0 1 0],{P,T,m});
+        d2T=sp_val(sp,[ 0 2 0],{P,T,m});
+        d3Tm=sp_val(sp,[ 0 2 1],{P,T,m});
+        d1P=sp_val(sp,[ 1 0 0],{P,T,m});
+        d2Pm=sp_val(sp,[ 1 0 1],{P,T,m});
+        dPT=sp_val(sp,[ 1 1 0],{P,T,m});
+        d2P=sp_val(sp,[ 2 0 0],{P,T,m});
+        d3P=sp_val(sp,[ 3 0 0],{P,T,m});
+        dGdm=sp_val(sp,[ 0 0 1],{P,T,m});
     else % scatter output
         Tm=input(:,2);
         Pm=input(:,1);
         mm=input(:,3); 
         if(isstruct(Goin))
-            Go=fnval(Goin,Tm);  % using a spline for the standard state vs T
+            Go=sp_val(Goin,Tm);  % using a spline for the standard state vs T
         else
             Go=1;
         end
@@ -116,21 +116,21 @@ else  % spline in P, T and compositions
         else
             mflg=0;
         end
-        G=fnval(sp,input')';
-        d1T=fnval(fnder(sp,[ 0 1 0]),input')';
-        d2T=fnval(fnder(sp,[0 2 0]),input')';
-        d3Tm=fnval(fnder(sp,[0 2 1]),input')';
-        d1P=fnval(fnder(sp,[1 0 0]),input')';
-        d2Pm=fnval(fnder(sp,[1 0 1]),input')';
-        dPT=fnval(fnder(sp,[1 1 0]),input')';
-        d2P=fnval(fnder(sp,[2 0 0]),input')';
-        d3P=fnval(fnder(sp,[3 0 0]),input')';
-        dGdm=fnval(fnder(sp,[ 0 0 1]),input')';
+        G=sp_val(sp,input);
+        d1T=sp_val(sp,[ 0 1 0],input);
+        d2T=sp_val(sp,[0 2 0],input);
+        d3Tm=sp_val(sp,[0 2 1],input);
+        d1P=sp_val(sp,[1 0 0],input);
+        d2Pm=sp_val(sp,[1 0 1],input);
+        dPT=sp_val(sp,[1 1 0],input);
+        d2P=sp_val(sp,[2 0 0],input);
+        d3P=sp_val(sp,[3 0 0],input);
+        dGdm=sp_val(sp,[ 0 0 1],input);
         % calculate zero concentration derivatives to determine apparent
         % Volume and specific heat
         if mu_flg
-           d2T0=fnval(fnder(sp,[0 2 0]),[Pm(:) Tm(:) mm0(:)]')';
-           d1P0=fnval(fnder(sp,[1 0 0]),[Pm(:) Tm(:) mm0(:)]')';
+           d2T0=sp_val(sp,[0 2 0],[Pm(:) Tm(:) mm0(:)]);
+           d1P0=sp_val(sp,[1 0 0],[Pm(:) Tm(:) mm0(:)]);
            V0=1e-6*d1P0;  % 1e6 for MPa to Pa
            Cp0=-d2T0.*Tm(:);
         end
