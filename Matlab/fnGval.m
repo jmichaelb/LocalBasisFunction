@@ -1,8 +1,8 @@
-function  Results=fnGval_v(sp,input)
-% function to return rho,vel, G, Cp, alpha S U H K and Kp for G splines in either (P and T) or (m, P, and T)
+function  Results=fnGval(sp,input)
+% function to return rho,vel, G, Cp, alpha S U A K and Kp for G splines in either (P and T) or (m, P, and T)
 %  ALL MKS with P in MPa
 %    Usage: Results=G_sp_eval(sp,input, MW) 
-%   Results=Result.rho,vel,G,Cp,alpha,S,U,H,Kt,Kp,Ks,mus,muw
+%   Results=Result.rho,vel,G,Cp,alpha,S,U,A,Kt,Kp,Ks,mus,muw
 %          where input is either a npts by (2 or 3) matrix of scatter points in [P  T m] or input is a cell of {P,T,m}  
 %                 m in molality, P in MPa and T in K.  optional MW is molecular
 %                 weight in kg/mol - needed for chemical potentials and
@@ -146,7 +146,8 @@ Ks=rho.*vel.^2/1e6;
 alpha=1e-6*dPT.*rho; % 1e6 for MPa to Pa
 
 U=G-1e6*Pm./rho+Tm.*S;
-H=U-Tm.*S;
+A=U-Tm.*S;
+H=G+Tm.*S;
 Kt=-d1P./d2P;
 Kp=d1P.*d2P.^(-2).*d3P -1;
 
@@ -184,6 +185,7 @@ if iscell(input) % gridded output
        Ks=Ks(:,:,2:end);
        alpha=alpha(:,:,2:end);
        U=U(:,:,2:end);
+       A=A(:,:,2:end);
        H=H(:,:,2:end);
        Kt=Kt(:,:,2:end);
        Kp=Kp(:,:,2:end);
@@ -250,19 +252,19 @@ end
 
 
 
-Results.rho=rho;
-
-Results.Cp=Cp;
 Results.G=G;
-Results.Cv=Cv;
-Results.vel=vel;
-Results.Kt=Kt;
-Results.Ks=Ks;
-Results.Kp=Kp;
 Results.S=S;
 Results.U=U;
 Results.H=H;
+Results.A=A;
+Results.rho=rho;
+Results.Cp=Cp;
+Results.Cv=Cv;
+Results.Kt=Kt;
+Results.Ks=Ks;
+Results.Kp=Kp;
 Results.alpha=alpha;
+Results.vel=vel;
 if mu_flg
     Results.Va=Va;
     Results.Cpa=Cpa;
@@ -278,12 +280,5 @@ if mu_flg
     Results.Vex=Vex;
     Results.Gex=Gex;
     Results.aw=aw;
-end
-
-if (isfield(sp,'shear_mod'))
-        shear=sp.shear_mod(1)+sp.shear_mod(2)*(rho-sp.shear_mod(5))+sp.shear_mod(3)*(rho-sp.shear_mod(5))+sp.shear_mod(4)*(Tm-sp.shear_mod(6));
-        Results.Vp=1e3*sqrt((Ks/1e3+4/3*shear)./rho/1e-3);
-        Results.Vs=1e3*sqrt(shear./rho/1e-3);
-        Results.shear=shear;
 end
 
