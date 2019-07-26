@@ -1,6 +1,6 @@
-import setuptools
+from setuptools import setup
 
-setuptools.setup(
+setup(
     name='uw-highP-geophysics-tools',
     version='0.8',
     author='pennythewho',
@@ -13,5 +13,6 @@ setuptools.setup(
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent"
-    ]
+    ],
+    install_requires=['scipy', 'hdf5storage', 'psutil']
 )
