@@ -5,12 +5,12 @@ Installation requires [git](https://www.git-scm.com/book/en/v2/Getting-Started-I
 Also make sure you have the [most recent version of pip](https://pip.pypa.io/en/stable/installing/#upgrading-pip) 
 installed.  
 
-The following packages must be [installed](https://packaging.python.org/tutorials/installing-packages/):
-- scipy (also installs numpy)
-- hdf5storage
-- psutil
+The following packages will be installed:
+- [scipy](https://scipy.org/scipylib/index.html) (also installs [numpy](http://numpy.org/))
+- [hdf5storage](https://pythonhosted.org/hdf5storage/)
+- [psutil](https://pypi.org/project/psutil/)
 
-Demo scripts may also require the following packages:
+Demo scripts may also require the following packages, which must be [installed](https://packaging.python.org/tutorials/installing-packages/) manually:
 - [matplotlib](https://matplotlib.org/users/installing.html)
 - [jupyter](https://jupyter.readthedocs.io/en/latest/install.html)
 
