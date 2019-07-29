@@ -18,9 +18,6 @@ Run the following command in Terminal on OSX or in Git Bash on Windows.
 
 ``pip3 install uw-highP-geophysics-tools``
 
-If you need to uninstall, use 
-``pip3 uninstall uw-highP-geophysics-tools``
-
 Note that scripts can be run in the regular command prompt on Windows; it is only the install that needs to be done 
 in Git Bash.
 
