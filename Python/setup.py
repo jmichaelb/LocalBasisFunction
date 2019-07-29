@@ -19,5 +19,6 @@ setuptools.setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent"
     ],
-    install_requires=['scipy', 'hdf5storage', 'psutil']
+    install_requires=['scipy', 'hdf5storage', 'psutil'],
+    data_files=[('', ['LICENSE.txt'])]
 )
