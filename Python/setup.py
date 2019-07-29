@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='uw-highP-geophysics-tools',
-    version='0.8.1a',
+    version='0.8.1b',
     author='pennythewho',
     author_email='pennythewho@gmail.com',
     long_description=long_description,
@@ -19,6 +19,5 @@ setuptools.setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent"
     ],
-    install_requires=['scipy', 'hdf5storage', 'psutil'],
-    data_files=[('', ['LICENSE.txt'])]
+    install_requires=['scipy', 'hdf5storage', 'psutil']
 )
