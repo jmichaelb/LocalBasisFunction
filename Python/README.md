@@ -10,7 +10,8 @@ The following packages will be installed:
 - [hdf5storage](https://pythonhosted.org/hdf5storage/)
 - [psutil](https://pypi.org/project/psutil/)
 
-Demo scripts may also require the following packages, which must be [installed](https://packaging.python.org/tutorials/installing-packages/) manually:
+Demo scripts may also require the following packages, which must be 
+[installed](https://packaging.python.org/tutorials/installing-packages/) manually:
 - [matplotlib](https://matplotlib.org/users/installing.html)
 - [jupyter](https://jupyter.readthedocs.io/en/latest/install.html)
 

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='uw-highP-geophysics-tools',
-    version='0.8.1b',
+    version='0.8.1.post1',
     author='pennythewho',
     author_email='pennythewho@gmail.com',
     long_description=long_description,
