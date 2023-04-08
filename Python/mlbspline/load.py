@@ -83,7 +83,7 @@ def getSplineDict(src):
         out['order'] = np.array([out['order']])
         # can't just reshape or nest in one step, sadly.  numpy tries to be smart and creates a 2D array
         # see https://stackoverflow.com/questions/7667799/numpy-object-arrays
-        knots = np.empty(1, np.object)
+        knots = np.empty(1, object)
         knots[0] = out['knots']
         out['knots'] = knots
 
